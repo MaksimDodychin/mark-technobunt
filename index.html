@@ -113,6 +113,12 @@
   #bossShield { font-size:11.5px; color:#d9b0ff; font-weight:800; text-shadow:0 2px 6px #000; }
   #bossShield.down { color:#8affc0; }
 
+  /* обновление игры */
+  #updBadge { position:fixed; left:50%; bottom:58px; transform:translate(-50%,10px); z-index:37; display:none;
+    background:#0e2a1cf2; border:1px solid #8affc088; color:#c8ffe0; border-radius:999px; cursor:pointer;
+    padding:9px 18px; font-size:13px; font-weight:800; box-shadow:0 8px 26px #000a; transition:transform .25s; }
+  #updBadge.show { display:block; transform:translate(-50%,0); }
+
   /* достижения */
   #achToast { position:fixed; left:50%; top:84px; transform:translate(-50%,-14px); z-index:36; display:flex;
     gap:11px; align-items:center; background:#0e1520f2; border:1px solid #ffd24a77; border-radius:14px;
@@ -169,6 +175,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <script>window.__APP_VER = "4903e099c7";</script>
 </head>
 <body>
 
@@ -229,6 +236,7 @@
 </div>
 
 <div id="achToast"></div>
+<button id="updBadge">🔄 Игра обновилась — нажми, чтобы применить</button>
 
 <!-- ======= ДОСТИЖЕНИЯ ======= -->
 <div id="achScreen" class="screen hidden">
@@ -2111,6 +2119,7 @@ function resumeGame() {
   if (state === 'paused') { state = prevState; last = performance.now(); }
 }
 function toMenu() {
+  if (applyUpdate) { applyUpdate(); return; }            // вернулся в меню — самое время обновиться
   state = 'menu'; stopBossMusic(); hideBossBar(); clearEnemies(); clearAllies();
   $('pauseScreen').classList.add('hidden');
   $('levelScreen').classList.add('hidden');
@@ -2644,6 +2653,18 @@ $('soundBtn').classList.toggle('off', !progress.sound);
 resetCharges();
 applyGold();
 
+/* ---------- самообновление ----------
+   Игра стартует мгновенно из памяти телефона. Если зашёл с интернетом и
+   вышла новая версия — она докачивается фоном, а применяется тогда, когда
+   не мешает: в меню сразу, в бою — по кнопке, чтобы не сбить игру. */
+let applyUpdate = null;
+window.__onUpdate = (apply) => {
+  applyUpdate = apply || (() => location.reload());
+  if (state === 'menu' || state === 'win') { applyUpdate(); return; }
+  $('updBadge').classList.add('show');                   // в бою не мешаем — обновим по кнопке
+};
+$('updBadge').addEventListener('click', () => applyUpdate && applyUpdate());
+
 /* для тестов */
 window.__dbg = {
   get state(){ return state; }, get level(){ return level; },
@@ -2716,6 +2737,37 @@ window.__dbg = {
 };
 </script>
 
-<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
+<script>
+// Игра стартует МГНОВЕННО из памяти телефона и работает без интернета.
+// Если интернет есть — проверяем крошечный version.json (несколько байт) и,
+// если вышла новая версия, обновляемся сами.
+(function () {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(function(){}));
+  }
+  async function applyUpdate() {
+    try {
+      const ks = await caches.keys();
+      await Promise.all(ks.map(function (k) { return caches.delete(k); }));
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) await reg.unregister();
+      }
+    } catch (_) {}
+    location.reload();
+  }
+  async function checkVersion() {
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (!j || !j.v || j.v === window.__APP_VER) return;
+      if (window.__onUpdate) window.__onUpdate(applyUpdate); else applyUpdate();
+    } catch (_) { /* нет интернета — играем офлайн, всё в порядке */ }
+  }
+  window.addEventListener('load', function () { setTimeout(checkVersion, 800); });
+  setInterval(checkVersion, 5 * 60 * 1000);
+})();
+</script>
 </body>
 </html>
