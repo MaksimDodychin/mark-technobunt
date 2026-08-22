@@ -192,7 +192,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "0f4b69e198";</script>
+  <script>window.__APP_VER = "5e2721b825";</script>
 </head>
 <body>
 
@@ -512,15 +512,21 @@ function buildRoom(level) {
   lamp.position.copy(roomLight.position); roomGroup.add(lamp);
   roomGroup.userData.lamp = lamp;
 
-  // мебель = укрытия (и коллизии); в зале босса пусто — там нужен простор
-  const furnN = bossRoom ? 0 : 3 + Math.floor(rng()*3);
+  // 🛋 МЕБЕЛЬ: настоящие диваны, кресла, столы, тумбы и вазы, а не цветные коробки
+  // (замечание Марка 22.08). Укрытием и коллизией служит невидимый бокс под моделью.
+  const furnN = bossRoom ? 0 : 4 + Math.floor(rng()*3);
+  const виды = ['диван', 'кресло', 'стол', 'тумба', 'ваза', 'шкаф'];
   for (let i=0;i<furnN;i++) {
-    const fw = 0.8 + rng()*1.7, fd = 0.7 + rng()*1.4, fh = 0.6 + rng()*1.1;
-    const fx = minX+1.6 + rng()*(w-3.2), fz = minZ+1.6 + rng()*(d-3.2);
-    if (Math.hypot(fx-0, fz-(maxZ-2)) < 3) continue;   // не заваливать спавн игрока
-    const fcol = [0x8a5a3a, 0x4a5060, 0x2f3a2a][Math.floor(rng()*3)];
-    addBox(fx-fw/2, fx+fw/2, fz-fd/2, fz+fd/2, fh, 0,
-      new THREE.MeshStandardMaterial({ color:fcol, roughness:0.78, metalness:0.05 }));
+    const вид = виды[Math.floor(rng()*виды.length)];
+    const fx = minX+2.0 + rng()*(w-4.0), fz = minZ+2.0 + rng()*(d-4.0);
+    if (Math.hypot(fx-0, fz-(maxZ-2)) < 3.4) continue;   // не заваливать спавн игрока
+    const пов = Math.floor(rng()*4) * Math.PI/2;
+    const { group, размер } = makeFurniture(вид, rng);
+    group.position.set(fx, 0, fz); group.rotation.y = пов;
+    roomGroup.add(group);
+    const гх = (пов % Math.PI) ? размер.d : размер.w;
+    const гз = (пов % Math.PI) ? размер.w : размер.d;
+    colliders.push({ minX:fx-гх/2, maxX:fx+гх/2, minZ:fz-гз/2, maxZ:fz+гз/2 });
   }
 
   // ЭЛЕКТРОЩИТОК на правой стене
@@ -537,6 +543,96 @@ function buildRoom(level) {
             pos:new THREE.Vector3().copy(pg.position), aimY:pg.position.y };
 
   return ch;
+}
+
+
+/* 🛋 НАСТОЯЩАЯ МЕБЕЛЬ КВАРТИРЫ: диван, кресло, стол, тумба, ваза, шкаф.
+   Каждая вещь — группа из деталей (ножки, подушки, ящики, ручки). */
+function makeFurniture(вид, rng) {
+  const R = rng || Math.random;
+  const g = new THREE.Group();
+  const обивка = [0x8c5c46, 0x4a5c72, 0x5d6b4e, 0x7a4b5e][Math.floor(R()*4)];
+  const т = (c, r=0.95) => new THREE.MeshStandardMaterial({ color:c, roughness:r, metalness:0.03 });
+  const дерево = t2 => new THREE.MeshStandardMaterial({ color:t2 || 0x6b4a2f, roughness:0.8 });
+  const хром = new THREE.MeshStandardMaterial({ color:0xb9c1cc, roughness:0.3, metalness:0.85 });
+  const кор = (sx, sy, sz, x, y, z, m) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m);
+    b.position.set(x, y, z); b.castShadow = b.receiveShadow = true; g.add(b); return b;
+  };
+  const ножки = (sx, sz, h, m) => { for (const ox of [-1,1]) for (const oz of [-1,1])
+    кор(0.08, h, 0.08, ox*(sx/2-0.08), h/2, oz*(sz/2-0.08), m); };
+
+  if (вид === 'диван') {
+    const w = 2.1, d = 0.9, м = т(обивка);
+    кор(w, 0.34, d, 0, 0.42, 0, м);                       // сиденье
+    кор(w, 0.62, 0.22, 0, 0.72, -d/2+0.11, м);            // спинка
+    for (const ox of [-1,1]) кор(0.22, 0.42, d, ox*(w/2-0.11), 0.60, 0, м);   // подлокотники
+    for (let k = -1; k <= 1; k++)                          // подушки
+      кор(0.62, 0.14, d-0.22, k*0.68, 0.63, 0.03, т(обивка, 0.99));
+    ножки(w-0.2, d-0.2, 0.26, дерево(0x3a2a1c));
+    return { group:g, размер:{ w, d } };
+  }
+  if (вид === 'кресло') {
+    const w = 0.95, d = 0.9, м = т(обивка);
+    кор(w, 0.32, d, 0, 0.42, 0, м);
+    кор(w, 0.66, 0.2, 0, 0.75, -d/2+0.1, м);
+    for (const ox of [-1,1]) кор(0.2, 0.4, d-0.1, ox*(w/2-0.1), 0.6, 0.02, м);
+    кор(w-0.24, 0.12, d-0.24, 0, 0.62, 0.04, т(обивка, 0.99));
+    ножки(w-0.16, d-0.16, 0.26, дерево(0x3a2a1c));
+    return { group:g, размер:{ w, d } };
+  }
+  if (вид === 'стол') {
+    const w = 1.5, d = 0.85;
+    кор(w, 0.08, d, 0, 0.74, 0, дерево(0x7a5636));
+    ножки(w-0.1, d-0.1, 0.70, дерево(0x4a3320));
+    кор(w-0.4, 0.05, d-0.3, 0, 0.30, 0, дерево(0x4a3320));   // полка
+    const кружка = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.12, 12), т(0xe8eef5, 0.4));
+    кружка.position.set(0.4, 0.84, 0.1); g.add(кружка);
+    return { group:g, размер:{ w, d } };
+  }
+  if (вид === 'тумба') {
+    const w = 0.95, d = 0.5, h = 0.72;
+    кор(w, h-0.12, d, 0, 0.12 + (h-0.12)/2, 0, дерево(0x6b4a2f));
+    кор(w+0.06, 0.05, d+0.06, 0, h + 0.02, 0, дерево(0x3a2a1c));
+    ножки(w-0.1, d-0.08, 0.12, дерево(0x3a2a1c));
+    for (let k = 0; k < 2; k++) {
+      const yy = 0.24 + k*0.28;
+      кор(w-0.12, 0.24, 0.03, 0, yy, d/2+0.015, дерево(0x4a3320));
+      const ручка = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 12), хром);
+      ручка.rotation.x = Math.PI/2; ручка.position.set(0, yy, d/2 + 0.05); g.add(ручка);
+    }
+    return { group:g, размер:{ w, d } };
+  }
+  if (вид === 'ваза') {
+    const H = 0.9 + R()*0.5;
+    const проф = [[0,0],[0.17,0],[0.22,H*0.12],[0.28,H*0.34],[0.24,H*0.56],
+                  [0.13,H*0.76],[0.11,H*0.9],[0.15,H],[0.13,H*1.02]];
+    const ваза = new THREE.Mesh(
+      new THREE.LatheGeometry(проф.map(q => new THREE.Vector2(q[0], q[1])), 20),
+      new THREE.MeshStandardMaterial({ color:[0x9aa7bd, 0x7d5b46, 0x4f7d6b][Math.floor(R()*3)],
+        roughness:0.25, metalness:0.2, side:THREE.DoubleSide }));
+    ваза.castShadow = true; g.add(ваза);
+    for (let k = 0; k < 5; k++) {                            // цветы
+      const ст = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.014, H*0.7, 5), т(0x3f6b3a));
+      const a = R()*6.28, r2 = 0.05;
+      ст.position.set(Math.cos(a)*r2, H + H*0.32, Math.sin(a)*r2);
+      ст.rotation.set(Math.cos(a)*0.2, 0, -Math.sin(a)*0.2); g.add(ст);
+      const бут = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6),
+        т([0xd94f70, 0xe8c14a, 0xe8e2f0][Math.floor(R()*3)], 0.85));
+      бут.position.set(Math.cos(a)*r2*2.1, H + H*0.66, Math.sin(a)*r2*2.1); g.add(бут);
+    }
+    return { group:g, размер:{ w:0.6, d:0.6 } };
+  }
+  // шкаф
+  const w = 1.1, d = 0.55, h = 1.9;
+  кор(w, h, d, 0, h/2, 0, дерево(0x5c3f28));
+  кор(w+0.08, 0.07, d+0.08, 0, h + 0.03, 0, дерево(0x3a2a1c));
+  for (const ox of [-1,1]) {
+    кор(w/2-0.05, h-0.12, 0.03, ox*w/4, h/2, d/2+0.015, дерево(0x46301e));
+    const ручка = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.16, 8), хром);
+    ручка.position.set(ox*0.08, h*0.52, d/2+0.06); g.add(ручка);
+  }
+  return { group:g, размер:{ w, d } };
 }
 
 /* маленький детерминированный рандом — комнаты одинаковые при одном уровне */
