@@ -192,7 +192,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "87c5d50ae0";</script>
+  <script>window.__APP_VER = "c335f8e2be";</script>
 </head>
 <body>
 
@@ -3124,60 +3124,88 @@ window.__dbg = {
 </script>
 
 <script>
-// Игра стартует МГНОВЕННО из памяти телефона и работает без интернета.
-// Если интернет есть — проверяем крошечный version.json и обновляемся сами.
+/* scoped PWA updater: the installed offline copy stays until a verified replacement activates. */
 (function () {
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(function(){}));
-  }
-  function баннер(текст) {
+  var scope = new URL('./', location.href).href;
+  var pending = '', checking = false, registrationPromise = null;
+  function banner(text) {
     var d = document.getElementById('updBanner');
     if (!d) { d = document.createElement('div'); d.id = 'updBanner';
-      d.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;' +
-        'background:#0b1220ee;color:#7dd3fc;font:900 15px system-ui;padding:10px 18px;border-radius:14px;' +
-        'border:2px solid #7dd3fc55;box-shadow:0 8px 24px #0009';
+      d.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;background:#0b1220ee;color:#7dd3fc;font:900 15px system-ui;padding:10px 18px;border-radius:14px;border:2px solid #7dd3fc55;box-shadow:0 8px 24px #0009';
       document.body.appendChild(d); }
-    d.textContent = текст;
-    return d;
+    d.textContent = text; return d;
   }
-  async function applyUpdate() {
-    баннер('🔄 Обновляю игру…');
+  function register() {
+    if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+    if (!registrationPromise) registrationPromise = navigator.serviceWorker.register(new URL('sw.js', scope).href,
+      { scope: scope, updateViaCache: 'none' }).catch(function (e) { registrationPromise = null; throw e; });
+    return registrationPromise;
+  }
+  function navigate(version) {
+    var url = new URL(location.href); url.searchParams.set('v', version);
+    if (url.href === location.href) location.reload(); else location.replace(url.href);
+  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (pending) navigate(pending);
+  });
+  async function version() {
+    var url = new URL('version.json', scope); url.searchParams.set('t', Date.now());
+    var response = await fetch(url.href, { cache: 'no-store' });
+    if (!response.ok) throw new Error('version unavailable');
+    var value = await response.json();
+    if (!value || typeof value.v !== 'string' || !/^[a-zA-Z0-9._-]{1,80}$/.test(value.v)) throw new Error('invalid version');
+    return value.v;
+  }
+  async function applyUpdate(next) {
     try {
-      const ks = await caches.keys();
-      await Promise.all(ks.map(function (k) { return caches.delete(k); }));
-      if ('serviceWorker' in navigator) {
-        const rs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(rs.map(function (r) { return r.unregister(); }));
+      if (typeof next !== 'string') next = await version();
+      if (next === window.__APP_VER) return false;
+      if (pending === next) return true;
+      pending = next; banner('🔄 Обновляю игру…');
+      var reg = await register();
+      if (reg) {
+        // The worker verifies index.html, fills its new cache, then takes over atomically.
+        await reg.update();
+      } else {
+        var target = new URL('index.html', scope); target.searchParams.set('v', next);
+        var response = await fetch(target.href, { cache: 'reload' });
+        if (!response.ok) throw new Error('update unavailable');
+        var match = (await response.text()).match(/window\.__APP_VER\s*=\s*["']([^"']+)["']/);
+        if (!match || match[1] !== next) throw new Error('update not ready');
+        navigate(next);
       }
-    } catch (_) {}
-    // ⚠️ Простой location.reload() может взять СТАРЫЙ html из кэша браузера,
-    // и обновление «не приходит» (жалоба Марка 23.08). Перезагружаемся по новому адресу.
-    setTimeout(function () {
-      location.replace(location.pathname + '?v=' + Date.now());
-    }, 400);
-  }
-  window.__forceUpdate = applyUpdate;
-  async function checkVersion(показать) {
-    try {
-      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
-      if (!r.ok) throw 0;
-      const j = await r.json();
-      if (!j || !j.v) throw 0;
-      if (j.v === window.__APP_VER) { if (показать) { const d = баннер('✅ У тебя самая свежая версия');
-          setTimeout(function(){ d.remove(); }, 2500); } return false; }
-      if (window.__onUpdate) window.__onUpdate(applyUpdate); else applyUpdate();
+      setTimeout(function () { if (pending) { pending = ''; var d = document.getElementById('updBanner'); if (d) d.remove(); } }, 20000);
       return true;
     } catch (_) {
-      if (показать) { const d = баннер('📴 Нет интернета — обновить не выйдет');
-        setTimeout(function(){ d.remove(); }, 2500); }
-      return false;
+      pending = ''; var d = banner('📴 Обновление пока недоступно — игра работает офлайн');
+      setTimeout(function () { d.remove(); }, 3500); return false;
     }
   }
+  async function checkVersion(show) {
+    if (checking || pending) return false; checking = true;
+    try {
+      var next = await version();
+      if (next === window.__APP_VER) {
+        if (show === true) { var d = banner('✅ У тебя самая свежая версия'); setTimeout(function () { d.remove(); }, 2500); }
+        return false;
+      }
+      var action = function () { return applyUpdate(next); };
+      if (window.__onUpdate) window.__onUpdate(action); else await action();
+      return true;
+    } catch (_) {
+      if (show === true) { var d = banner('📴 Нет интернета — игра работает офлайн'); setTimeout(function () { d.remove(); }, 2500); }
+      return false;
+    } finally { checking = false; }
+  }
+  window.__forceUpdate = function () { return applyUpdate(); };
   window.__checkUpdate = function () { return checkVersion(true); };
-  window.addEventListener('load', function () { setTimeout(checkVersion, 300); setTimeout(checkVersion, 3000); });
+  window.addEventListener('load', function () {
+    register().catch(function () {});
+    setTimeout(checkVersion, 500); setTimeout(checkVersion, 4000);
+  });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) checkVersion(); });
-  addEventListener('online', checkVersion);
-  setInterval(checkVersion, 60 * 1000);
+  window.addEventListener('online', function () { checkVersion(); });
+  setInterval(checkVersion, 60000);
 })();
 </script>
 </body>

@@ -1,54 +1,61 @@
-// service worker «Технобунт» — версия по содержимому: 87c5d50ae0
-// Игра всегда отдаётся МГНОВЕННО из памяти телефона (и работает без интернета).
-// Новая версия скачивается фоном при следующем заходе и применяется сама.
-const CACHE = 'technobunt-87c5d50ae0';
-const ASSETS = ['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-512-maskable.png','./apple-touch-icon.png'];
-
-self.addEventListener('install', e => {
-  e.waitUntil((async () => {
-    const c = await caches.open(CACHE);
-    // cache:'reload' — качаем именно с сервера, а не из старого HTTP-кэша
-    await Promise.all(ASSETS.map(async u => {
-      try { const r = await fetch(new Request(u, { cache: 'reload' })); if (r.ok) await c.put(u, r); } catch (_) {}
+// Scoped offline application updater; version changes with the payload and updater.
+const VERSION = 'c335f8e2be';
+const PREFIX = "technobunt-";
+const CACHE = PREFIX + VERSION;
+const SCOPE = new URL(self.registration.scope);
+const INDEX = new URL('index.html', SCOPE).href;
+const ASSETS = ["./manifest.webmanifest","./icon-192.png","./icon-512.png","./icon-512-maskable.png","./apple-touch-icon.png"];
+const belongs = url => url.origin === SCOPE.origin && url.pathname.startsWith(SCOPE.pathname);
+self.addEventListener('install', event => {
+  event.waitUntil((async () => {
+    // Installation must fail if the new HTML is missing, stale, or only half deployed.
+    const response = await fetch(new Request(INDEX, { cache: 'reload' }));
+    if (!response.ok) throw new Error('New application document unavailable');
+    const match = (await response.clone().text()).match(/window\.__APP_VER\s*=\s*["']([^"']+)["']/);
+    if (!match || match[1] !== VERSION) throw new Error('New application version not deployed yet');
+    const cache = await caches.open(CACHE);
+    await cache.put(INDEX, response.clone());
+    await cache.put(SCOPE.href, response);
+    await Promise.all(ASSETS.map(async asset => {
+      try {
+        const url = new URL(asset, SCOPE).href;
+        const result = await fetch(new Request(url, { cache: 'reload' }));
+        if (result.ok) await cache.put(url, result);
+      } catch (_) {} // An optional icon never invalidates the already verified game document.
     }));
     await self.skipWaiting();
   })());
 });
-
-self.addEventListener('activate', e => {
-  e.waitUntil((async () => {
-    const ks = await caches.keys();
-    await Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)));
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const names = await caches.keys();
+    await Promise.all(names.filter(name => name.startsWith(PREFIX) && name !== CACHE).map(name => caches.delete(name)));
     await self.clients.claim();
-    // 🔄 ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ СТАРЫХ КОПИЙ.
-    // Даже если на телефоне лежит старая страница без нового обновлятора, браузер всё равно
-    // скачивает свежий sw.js при заходе. Новый воркер сам перезагружает открытые окна
-    // на свежий адрес — и застрявшая версия обновляется без всяких кнопок (Марк, 23.08).
-    try {
-      const окна = await self.clients.matchAll({ type: 'window' });
-      for (const w of окна) {
-        const базовый = w.url.split('?')[0];
-        await w.navigate(базовый + '?v=' + Date.now());
-      }
-    } catch (_) {}
+    const windows = await self.clients.matchAll({ type: 'window' });
+    for (const client of windows) {
+      const url = new URL(client.url);
+      if (!belongs(url) || url.searchParams.get('v') === VERSION) continue;
+      url.searchParams.set('v', VERSION);
+      // Do not await navigation: it can wait for this activation to finish.
+      client.navigate(url.href).catch(() => {});
+    }
   })());
 });
-
-self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  // файл версии НИКОГДА не кэшируем — по нему игра узнаёт про обновление
-  if (new URL(e.request.url).pathname.endsWith('version.json')) return;
-  const isDoc = e.request.mode === 'navigate' || e.request.destination === 'document';
-  e.respondWith((async () => {
-    const c = await caches.open(CACHE);
-    const hit = await c.match(isDoc ? './index.html' : e.request, { ignoreSearch: true });
-    if (hit) return hit;                                   // мгновенный старт
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (!belongs(url) || url.pathname === new URL('version.json', SCOPE).pathname) return;
+  const doc = event.request.mode === 'navigate' || event.request.destination === 'document';
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const hit = await cache.match(doc ? INDEX : event.request, { ignoreSearch: true });
+    if (hit) return hit;
     try {
-      const r = await fetch(e.request);
-      if (r.ok) c.put(e.request, r.clone());
-      return r;
+      const result = await fetch(event.request);
+      if (result.ok) await cache.put(event.request, result.clone());
+      return result;
     } catch (_) {
-      return (await c.match('./index.html')) || Response.error();
+      return doc ? (await cache.match(INDEX)) || Response.error() : Response.error();
     }
   })());
 });
