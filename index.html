@@ -192,7 +192,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "5e2721b825";</script>
+  <script>window.__APP_VER = "34f3ceec06";</script>
 </head>
 <body>
 
@@ -436,7 +436,7 @@ function clearRoom() {
     c.traverse(o => { if (o.geometry) o.geometry.dispose(); });
     roomGroup.remove(c);
   }
-  colliders = []; panel = null; roomLight = null;
+  colliders = []; panel = null; roomLight = null; newsTV = null;
 }
 
 function addBox(minX,maxX,minZ,maxZ, h, y, mat, solid=true) {
@@ -446,6 +446,162 @@ function addBox(minX,maxX,minZ,maxZ, h, y, mat, solid=true) {
   roomGroup.add(m);
   if (solid) colliders.push({minX,maxX,minZ,maxZ});
   return m;
+}
+
+/* 📺 НОВОСТНОЙ ТЕЛЕВИЗОР — завязка сюжета (заказ Марка 12.09).
+   Висит на дальней стене ПЕРВОЙ комнаты (квартира), прямо по курсу.
+   Сначала «СРОЧНЫЕ НОВОСТИ» про аварии и сошедшую с ума технику, потом сбой —
+   и в помехах проступает ЛИЦО ИНОПЛАНЕТЯНИНА. Вот кто за всем этим стоит. */
+let newsTV = null;
+const НОВОСТИ = [
+  'В городе — ряд необъяснимых аварий.',
+  'Ломаются светофоры и уличные фонари.',
+  'Без электричества остались школы,',
+  'кинотеатры и несколько жилых домов.',
+  'Бытовая техника сходит с ума.',
+  'Причина, похоже, — неполадки в сети.',
+];
+const БЕГУЩАЯ = '   ⚡ СПЕЦИАЛИСТЫ ПРОСЯТ НЕ ПОДХОДИТЬ К РАБОТАЮЩИМ ПРИБОРАМ ' +
+  '⚡ ОЧЕВИДЦЫ СЛЫШАТ СТРАННЫЙ ГУЛ ИЗ РОЗЕТОК ⚡ РЕМОНТНЫЕ БРИГАДЫ НЕ НАХОДЯТ ПОЛОМКИ ' +
+  '⚡ ЖИТЕЛЕЙ ПРОСЯТ СОХРАНЯТЬ СПОКОЙСТВИЕ ';
+function buildNewsTV(maxZ) {
+  const cv = document.createElement('canvas'); cv.width = 640; cv.height = 360;
+  const ctx = cv.getContext('2d');
+  const tex = new THREE.CanvasTexture(cv);
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(4.3, 2.6, 0.16), plastic(0x15171c)));
+  const экран = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 2.28),
+    new THREE.MeshBasicMaterial({ map:tex }));
+  экран.position.z = 0.09; g.add(экран);
+  const подставка = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.12), plastic(0x0d0f13));
+  подставка.position.y = -1.4; g.add(подставка);
+  const свет = new THREE.PointLight(0x9fd0ff, 14, 11, 2); свет.position.set(0, 0, 1.2); g.add(свет);
+  g.position.set(0, 1.95, maxZ - 0.26);                // ближняя стена, ровно за спиной у старта
+  g.rotation.y = Math.PI;
+  roomGroup.add(g);
+  newsTV = { cv, ctx, tex, свет, t:0, фаза:'новости', перерис:0, сбой:false };
+  рисоватьНовости(0);
+}
+function рисоватьНовости(t) {
+  const { ctx, cv } = newsTV, W = cv.width, H = cv.height;
+  const ф = ctx.createLinearGradient(0, 0, 0, H);
+  ф.addColorStop(0, '#132a4a'); ф.addColorStop(1, '#07101d');
+  ctx.fillStyle = ф; ctx.fillRect(0, 0, W, H);
+  // силуэт «студии»: стол и ведущий
+  ctx.fillStyle = '#24466f'; ctx.beginPath(); ctx.ellipse(112, 196, 44, 52, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(112, 128, 26, 30, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#0d1f36'; ctx.fillRect(40, 238, 170, 60);
+  // шапка «срочные новости»
+  ctx.fillStyle = '#c0182a'; ctx.fillRect(0, 8, W, 46);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 30px system-ui, sans-serif';
+  ctx.fillText('СРОЧНЫЕ НОВОСТИ', 18, 42);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffe0e0'; ctx.font = 'bold 16px system-ui, sans-serif';
+  ctx.fillText('ПРЯМОЙ ЭФИР', W-16, 37);
+  if (Math.floor(t*2) % 2 === 0) {                    // мигающий «прямой эфир»
+    ctx.fillStyle = '#ff4d4d'; ctx.beginPath(); ctx.arc(W-124, 31, 8, 0, 7); ctx.fill();
+  }
+  ctx.textAlign = 'left';
+  // строки новостей проявляются по одной
+  ctx.font = '19px system-ui, sans-serif';
+  НОВОСТИ.forEach((стр, i) => {
+    const п = Math.min(1, Math.max(0, (t - 1.4 - i*1.5) / 0.6));
+    if (п <= 0) return;
+    ctx.fillStyle = 'rgba(233,243,255,' + п.toFixed(2) + ')';
+    ctx.fillText(стр, 220, 102 + i*30);
+  });
+  // бегущая строка — под «СРОЧНО» не подлезает
+  ctx.fillStyle = '#0b1728'; ctx.fillRect(0, H-44, W, 44);
+  ctx.save(); ctx.beginPath(); ctx.rect(96, H-44, W-96, 44); ctx.clip();
+  ctx.fillStyle = '#ffd24a'; ctx.font = 'bold 18px system-ui, sans-serif';
+  const шаг = (t*70) % 2200;
+  ctx.fillText(БЕГУЩАЯ + БЕГУЩАЯ, W - шаг, H-16);
+  ctx.restore();
+  ctx.fillStyle = '#c0182a'; ctx.fillRect(0, H-44, 92, 44);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 18px system-ui, sans-serif';
+  ctx.fillText('СРОЧНО', 12, H-16);
+}
+function рисоватьПомехи(t) {
+  const { ctx, cv } = newsTV, W = cv.width, H = cv.height;
+  ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 90; i++) {                       // рваные полосы шума
+    const y = Math.random()*H, h = 1 + Math.random()*7;
+    const c = Math.floor(Math.random()*255);
+    ctx.fillStyle = 'rgba(' + c + ',' + c + ',' + c + ',' + (0.25 + Math.random()*0.6).toFixed(2) + ')';
+    ctx.fillRect(Math.random()*W - 40, y, W*0.4 + Math.random()*W*0.7, h);
+  }
+  const полосы = ['#e8e8e8','#e8e836','#36e8e8','#36e836','#e836e8','#e83636','#3636e8'];
+  полосы.forEach((c, i) => { ctx.fillStyle = c; ctx.globalAlpha = 0.35;
+    ctx.fillRect(i*W/7, H*0.2 + Math.sin(t*9+i)*40, W/7, H*0.6); });
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 34px system-ui, sans-serif';
+  if (Math.floor(t*6) % 2) ctx.fillText('НЕТ СИГНАЛА', 190, H/2);
+}
+function рисоватьПришельца(t) {
+  const { ctx, cv } = newsTV, W = cv.width, H = cv.height;
+  ctx.fillStyle = '#02150b'; ctx.fillRect(0, 0, W, H);
+  for (let y = 0; y < H; y += 3) {                     // строчная развёртка
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(0, y, W, 1);
+  }
+  const cx = W/2, cy = H*0.47, R = H*0.33, дых = 1 + Math.sin(t*1.6)*0.02;
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(дых, 1.22*дых);
+  const gr = ctx.createRadialGradient(0, -R*0.35, R*0.08, 0, 0, R);
+  gr.addColorStop(0, '#c6ffcf'); gr.addColorStop(0.55, '#49c96c'); gr.addColorStop(1, '#0a3018');
+  ctx.fillStyle = gr;
+  ctx.beginPath(); ctx.moveTo(0, R*0.95);              // каплевидная голова
+  ctx.bezierCurveTo(-R*1.08, R*0.5, -R*1.02, -R*0.9, 0, -R);
+  ctx.bezierCurveTo(R*1.02, -R*0.9, R*1.08, R*0.5, 0, R*0.95);
+  ctx.fill();
+  ctx.restore();
+  for (const s of [-1, 1]) {                           // огромные миндалевидные глаза
+    ctx.save(); ctx.translate(cx + s*R*0.42, cy - R*0.05); ctx.rotate(s*0.42);
+    ctx.fillStyle = '#05070a';
+    ctx.beginPath(); ctx.ellipse(0, 0, R*0.33, R*0.17, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(190,255,210,' + (0.25 + Math.abs(Math.sin(t*2))*0.5).toFixed(2) + ')';
+    ctx.beginPath(); ctx.ellipse(-R*0.1, -R*0.04, R*0.07, R*0.035, 0, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = '#0a2b16';                           // рот-щёлка и ноздри
+  ctx.fillRect(cx - R*0.12, cy + R*0.52, R*0.24, R*0.035);
+  ctx.beginPath(); ctx.arc(cx - R*0.06, cy + R*0.34, R*0.022, 0, 7);
+  ctx.arc(cx + R*0.06, cy + R*0.34, R*0.022, 0, 7); ctx.fill();
+  if (Math.random() < 0.25) {                          // редкий срыв кадра
+    const y = Math.random()*H;
+    ctx.drawImage(cv, 0, y, W, 16, Math.random()*40-20, y, W, 16);
+  }
+  ctx.fillStyle = '#7dffa5'; ctx.font = 'bold 24px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  if (Math.floor(t*1.6) % 2) ctx.fillText('. . . М Ы   У Ж Е   З Д Е С Ь . . .', W/2, H-24);
+  ctx.textAlign = 'left';
+}
+function updateNewsTV(dt) {
+  const n = newsTV; if (!n) return;
+  n.t += dt; n.перерис -= dt;
+  const t = n.t;
+  if (n.фаза === 'новости' && n.сбой) {                // 📺 СБОЙ (комната зачищена)
+    n.фаза = 'помехи'; n.перелом = t;
+    noiseBurst(0.9, 0.16, 2600); tone(70, 'sawtooth', 0.7, 0.1);
+    bigMsg('📺 ВЫПУСК ПРЕРВАН…\nпосмотри на телевизор', 2.6, '#8ae0ff');
+  }
+  if (n.фаза === 'помехи' && t > n.перелом + 3.2) {    // 👽 и вот кто это был
+    n.фаза = 'пришелец'; tone(52, 'sawtooth', 1.6, 0.12);
+    setTimeout(() => tone(39, 'sine', 2.2, 0.1), 300);
+    noiseBurst(0.5, 0.12, 900);
+    bigMsg('👽 ЭТО НЕ ЭЛЕКТРОСЕТЬ.', 3, '#7dffa5');
+  }
+  if (n.фаза === 'новости') {
+    if (n.перерис > 0) return;
+    n.перерис = 0.07; рисоватьНовости(t);
+    n.свет.color.setHex(0x9fd0ff); n.свет.intensity = 16;
+  } else if (n.фаза === 'помехи') {
+    рисоватьПомехи(t);
+    n.свет.color.setHex(0xd8d8d8); n.свет.intensity = 8 + Math.random()*22;
+  } else {
+    if (n.перерис > 0) return;
+    n.перерис = 0.05; рисоватьПришельца(t);
+    n.свет.color.setHex(0x5cff8f); n.свет.intensity = 15 + Math.sin(t*3)*6;
+  }
+  n.tex.needsUpdate = true;
 }
 
 function buildRoom(level) {
@@ -541,6 +697,12 @@ function buildRoom(level) {
   roomGroup.add(pg);
   panel = { group:pg, light:plight, bolt:pbolt, alive:true,
             pos:new THREE.Vector3().copy(pg.position), aimY:pg.position.y };
+
+  if (level === 1) {                         // 📺 новости и лицо пришельца — только 1-я комната
+    buildNewsTV(maxZ);
+    setTimeout(() => { if (state === 'play' && level === 1)
+      bigMsg('📺 СЗАДИ РАБОТАЕТ ТЕЛЕВИЗОР\nобернись и послушай новости', 3.2, '#8ae0ff'); }, 1200);
+  }
 
   return ch;
 }
@@ -2364,7 +2526,7 @@ function startLevel(n) {
   const ch = buildRoom(level);
 
   // игрок — у ближней стены, лицом в глубину комнаты (к двери на дальней стене)
-  player.pos.set(0, 0, roomBounds.maxZ - 1.6);
+  player.pos.set(0, 0, roomBounds.maxZ - (level === 1 ? 5.6 : 1.6));
   player.yaw = 0; player.pitch = 0;
   player.invuln = CFG.invulnOnStart; player.alive = true;
 
@@ -2433,6 +2595,8 @@ function roomCleared() {
     setTimeout(() => bigMsg('НОВАЯ КНОПКА:\n' + EARLY_UNLOCK.text, 2.8, '#8ad8ff'), 1300);
   }
   if (roomGroup.userData.doorGlow) roomGroup.userData.doorGlow.material.color.setHex(0x35e07a);
+  // 📺 первая комната зачищена → телевизор ловит помехи и показывает ХОЗЯИНА (задумка Марка)
+  if (newsTV && newsTV.фаза === 'новости') setTimeout(() => { if (newsTV) newsTV.сбой = true; }, 1600);
 }
 
 /* 🏆 ПОБЕДА — Сердце разбито, вся техника на планете гаснет */
@@ -2750,6 +2914,7 @@ function loop(now) {
   }
 
   updateFx(dt);
+  updateNewsTV(dt);                          // 📺 новости → сбой → пришелец
   renderer.render(scene, camera);
 }
 requestAnimationFrame(loop);
@@ -2843,6 +3008,19 @@ $('updBadge').addEventListener('click', () => applyUpdate && applyUpdate());
 /* для тестов */
 window.__dbg = {
   get state(){ return state; }, get level(){ return level; },
+  get news(){ return newsTV ? { фаза:newsTV.фаза, t:+newsTV.t.toFixed(1) } : null; },
+  newsPng(){ return newsTV ? newsTV.cv.toDataURL('image/png') : null; },
+  lookNews(){ if (!newsTV) return null;
+    const g = newsTV.свет.parent;
+    player.pos.set(g.position.x + 0.4, 0, g.position.z - 5);
+    player.yaw = Math.atan2(-(g.position.x-player.pos.x), -(g.position.z-player.pos.z));
+    player.pitch = 0.05; camera.rotation.set(player.pitch, player.yaw, 0); camera.updateMatrixWorld(true);
+    return true; },
+  newsGlitch(){ if (!newsTV) return null; newsTV.сбой = true; return newsTV.фаза; },
+  atStart(){ player.pos.set(0, 0, roomBounds.maxZ - (level === 1 ? 5.6 : 1.6)); player.yaw = 0; player.pitch = 0;
+    camera.rotation.set(0, 0, 0); camera.updateMatrixWorld(true); return true; },
+  turnAround(){ player.yaw += Math.PI; camera.rotation.set(player.pitch, player.yaw, 0);
+    camera.updateMatrixWorld(true); return true; },
   get enemies(){ return enemies.map(e => ({ type:e.type.id, alive:e.alive, hp:e.hp, online:e.online,
                                             x:e.pos.x, z:e.pos.z,
                                             controlled:e.controlled, confused:e.confused, pulled:!!e.pulled,
@@ -2920,34 +3098,59 @@ window.__dbg = {
 
 <script>
 // Игра стартует МГНОВЕННО из памяти телефона и работает без интернета.
-// Если интернет есть — проверяем крошечный version.json (несколько байт) и,
-// если вышла новая версия, обновляемся сами.
+// Если интернет есть — проверяем крошечный version.json и обновляемся сами.
 (function () {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(function(){}));
   }
+  function баннер(текст) {
+    var d = document.getElementById('updBanner');
+    if (!d) { d = document.createElement('div'); d.id = 'updBanner';
+      d.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;' +
+        'background:#0b1220ee;color:#7dd3fc;font:900 15px system-ui;padding:10px 18px;border-radius:14px;' +
+        'border:2px solid #7dd3fc55;box-shadow:0 8px 24px #0009';
+      document.body.appendChild(d); }
+    d.textContent = текст;
+    return d;
+  }
   async function applyUpdate() {
+    баннер('🔄 Обновляю игру…');
     try {
       const ks = await caches.keys();
       await Promise.all(ks.map(function (k) { return caches.delete(k); }));
       if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) await reg.unregister();
+        const rs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(rs.map(function (r) { return r.unregister(); }));
       }
     } catch (_) {}
-    location.reload();
+    // ⚠️ Простой location.reload() может взять СТАРЫЙ html из кэша браузера,
+    // и обновление «не приходит» (жалоба Марка 23.08). Перезагружаемся по новому адресу.
+    setTimeout(function () {
+      location.replace(location.pathname + '?v=' + Date.now());
+    }, 400);
   }
-  async function checkVersion() {
+  window.__forceUpdate = applyUpdate;
+  async function checkVersion(показать) {
     try {
       const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
-      if (!r.ok) return;
+      if (!r.ok) throw 0;
       const j = await r.json();
-      if (!j || !j.v || j.v === window.__APP_VER) return;
+      if (!j || !j.v) throw 0;
+      if (j.v === window.__APP_VER) { if (показать) { const d = баннер('✅ У тебя самая свежая версия');
+          setTimeout(function(){ d.remove(); }, 2500); } return false; }
       if (window.__onUpdate) window.__onUpdate(applyUpdate); else applyUpdate();
-    } catch (_) { /* нет интернета — играем офлайн, всё в порядке */ }
+      return true;
+    } catch (_) {
+      if (показать) { const d = баннер('📴 Нет интернета — обновить не выйдет');
+        setTimeout(function(){ d.remove(); }, 2500); }
+      return false;
+    }
   }
-  window.addEventListener('load', function () { setTimeout(checkVersion, 800); });
-  setInterval(checkVersion, 5 * 60 * 1000);
+  window.__checkUpdate = function () { return checkVersion(true); };
+  window.addEventListener('load', function () { setTimeout(checkVersion, 300); setTimeout(checkVersion, 3000); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkVersion(); });
+  addEventListener('online', checkVersion);
+  setInterval(checkVersion, 60 * 1000);
 })();
 </script>
 </body>

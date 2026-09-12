@@ -1,7 +1,7 @@
-// service worker «Технобунт» — версия по содержимому: 5e2721b825
+// service worker «Технобунт» — версия по содержимому: 34f3ceec06
 // Игра всегда отдаётся МГНОВЕННО из памяти телефона (и работает без интернета).
 // Новая версия скачивается фоном при следующем заходе и применяется сама.
-const CACHE = 'technobunt-5e2721b825';
+const CACHE = 'technobunt-34f3ceec06';
 const ASSETS = ['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-512-maskable.png','./apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -20,6 +20,17 @@ self.addEventListener('activate', e => {
     const ks = await caches.keys();
     await Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)));
     await self.clients.claim();
+    // 🔄 ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ СТАРЫХ КОПИЙ.
+    // Даже если на телефоне лежит старая страница без нового обновлятора, браузер всё равно
+    // скачивает свежий sw.js при заходе. Новый воркер сам перезагружает открытые окна
+    // на свежий адрес — и застрявшая версия обновляется без всяких кнопок (Марк, 23.08).
+    try {
+      const окна = await self.clients.matchAll({ type: 'window' });
+      for (const w of окна) {
+        const базовый = w.url.split('?')[0];
+        await w.navigate(базовый + '?v=' + Date.now());
+      }
+    } catch (_) {}
   })());
 });
 
