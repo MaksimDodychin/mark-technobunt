@@ -192,7 +192,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "34f3ceec06";</script>
+  <script>window.__APP_VER = "87c5d50ae0";</script>
 </head>
 <body>
 
@@ -668,21 +668,46 @@ function buildRoom(level) {
   lamp.position.copy(roomLight.position); roomGroup.add(lamp);
   roomGroup.userData.lamp = lamp;
 
-  // 🛋 МЕБЕЛЬ: настоящие диваны, кресла, столы, тумбы и вазы, а не цветные коробки
-  // (замечание Марка 22.08). Укрытием и коллизией служит невидимый бокс под моделью.
-  const furnN = bossRoom ? 0 : 4 + Math.floor(rng()*3);
-  const виды = ['диван', 'кресло', 'стол', 'тумба', 'ваза', 'шкаф'];
-  for (let i=0;i<furnN;i++) {
-    const вид = виды[Math.floor(rng()*виды.length)];
-    const fx = minX+2.0 + rng()*(w-4.0), fz = minZ+2.0 + rng()*(d-4.0);
-    if (Math.hypot(fx-0, fz-(maxZ-2)) < 3.4) continue;   // не заваливать спавн игрока
-    const пов = Math.floor(rng()*4) * Math.PI/2;
-    const { group, размер } = makeFurniture(вид, rng);
-    group.position.set(fx, 0, fz); group.rotation.y = пов;
-    roomGroup.add(group);
-    const гх = (пов % Math.PI) ? размер.d : размер.w;
-    const гз = (пов % Math.PI) ? размер.w : размер.d;
-    colliders.push({ minX:fx-гх/2, maxX:fx+гх/2, minZ:fz-гз/2, maxZ:fz+гз/2 });
+  /* 🛋 МЕБЕЛЬ КАК В НАСТОЯЩЕЙ КВАРТИРЕ (просьба Марка 12.09: «вазы и шкафы расставлены
+     как угодно»). Раньше всё падало в случайные точки с случайным поворотом — комната
+     выглядела складом. Теперь у комнаты ПЛАНИРОВКА: крупное стоит спинкой к стене и
+     смотрит внутрь, стол и кресло — в жилой зоне, ваза — в углу. Проход по центру
+     и место у двери всегда свободны. */
+  if (!bossRoom) {
+    const отступ = 1.5;
+    const свободноУ = [ {x:0, z:maxZ-2, r:3.6},            // спавн игрока
+                        {x:doorX, z:minZ+2, r:3.2} ];       // проход к двери
+    // сторона: куда СМОТРИТ мебель (модель по умолчанию смотрит в +Z)
+    const план = [
+      { вид:'диван',  стена:'лево',  вдоль:0.42 },
+      { вид:'кресло', стена:'лево',  вдоль:0.68 },
+      { вид:'шкаф',   стена:'право', вдоль:0.34 },
+      { вид:'тумба',  стена:'право', вдоль:0.66 },
+      { вид:'стол',   стена:'центр', вдоль:0.52 },
+      { вид:'ваза',   стена:'угол',  вдоль:0.16 },
+    ];
+    const сколько = 4 + Math.floor(rng()*3);
+    for (let i = 0; i < Math.min(сколько, план.length); i++) {
+      const п = план[i];
+      const { group, размер } = makeFurniture(п.вид, rng);
+      let fx, fz, пов;
+      if (п.стена === 'лево')       { пов =  Math.PI/2; fx = minX + отступ + размер.d/2; fz = minZ + d*п.вдоль; }
+      else if (п.стена === 'право') { пов = -Math.PI/2; fx = maxX - отступ - размер.d/2; fz = minZ + d*п.вдоль; }
+      else if (п.стена === 'даль')  { пов = 0;          fz = minZ + отступ + размер.d/2; fx = minX + w*п.вдоль; }
+      else if (п.стена === 'угол')  { пов = Math.PI/4;  fx = minX + отступ + 1.2;        fz = minZ + отступ + 1.2; }
+      else                          { пов = Math.PI;    fx = 0;                          fz = minZ + d*п.вдоль; }
+      if (свободноУ.some(z2 => Math.hypot(fx-z2.x, fz-z2.z) < z2.r)) continue;
+      group.position.set(fx, 0, fz); group.rotation.y = пов;
+      roomGroup.add(group);
+      const боком = Math.abs(Math.sin(пов)) > 0.5;
+      const гх = боком ? размер.d : размер.w;
+      const гз = боком ? размер.w : размер.d;
+      colliders.push({ minX:fx-гх/2, maxX:fx+гх/2, minZ:fz-гз/2, maxZ:fz+гз/2 });
+    }
+    // 🧶 коврик в жилой зоне — комната сразу читается как квартира
+    const коврик = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(7, w*0.4), Math.min(5, d*0.26)),
+      new THREE.MeshStandardMaterial({ color:0x7a4b3a, roughness:1 }));
+    коврик.rotation.x = -Math.PI/2; коврик.position.set(0, 0.02, minZ + d*0.52); roomGroup.add(коврик);
   }
 
   // ЭЛЕКТРОЩИТОК на правой стене
@@ -3017,6 +3042,8 @@ window.__dbg = {
     player.pitch = 0.05; camera.rotation.set(player.pitch, player.yaw, 0); camera.updateMatrixWorld(true);
     return true; },
   newsGlitch(){ if (!newsTV) return null; newsTV.сбой = true; return newsTV.фаза; },
+  topView(){ camera.position.set(0, 26, 14); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(true); return true; },
+  get furniture(){ return colliders.length; },
   atStart(){ player.pos.set(0, 0, roomBounds.maxZ - (level === 1 ? 5.6 : 1.6)); player.yaw = 0; player.pitch = 0;
     camera.rotation.set(0, 0, 0); camera.updateMatrixWorld(true); return true; },
   turnAround(){ player.yaw += Math.PI; camera.rotation.set(player.pitch, player.yaw, 0);

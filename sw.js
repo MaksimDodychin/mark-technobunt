@@ -1,7 +1,7 @@
-// service worker «Технобунт» — версия по содержимому: 34f3ceec06
+// service worker «Технобунт» — версия по содержимому: 87c5d50ae0
 // Игра всегда отдаётся МГНОВЕННО из памяти телефона (и работает без интернета).
 // Новая версия скачивается фоном при следующем заходе и применяется сама.
-const CACHE = 'technobunt-34f3ceec06';
+const CACHE = 'technobunt-87c5d50ae0';
 const ASSETS = ['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-512-maskable.png','./apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
