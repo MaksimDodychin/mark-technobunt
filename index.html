@@ -203,7 +203,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "d8193ec1a8";</script>
+  <script>window.__APP_VER = "c5e93b08ab";</script>
 </head>
 <body>
 
@@ -3362,6 +3362,71 @@ window.__dbg = {
   killMinions(){ enemies.forEach(e => e.alive && !e.isBoss && killEnemy(e,'hit')); },
 };
 </script>
+<!-- 🪐 ПАНЕЛЬ ПЛАНЕТЫ ИГР (заказ Марка 12.09.2026): кнопка «в лобби» и приближение экрана.
+     Вставляется во ВСЕ игры одинаковым куском. Все имена с приставкой mkl-, чтобы
+     ничего не задеть в самой игре. Ставится по левому краю посередине — там у игр пусто. -->
+<style>
+  #mkl-bar{position:fixed;left:6px;top:50%;transform:translateY(-50%);z-index:99999;
+    display:flex;flex-direction:column;gap:7px;opacity:.55;transition:opacity .18s}
+  #mkl-bar:hover,#mkl-bar.mkl-act{opacity:1}
+  .mkl-b{width:42px;height:42px;border-radius:50%;border:2px solid #ffffff44;cursor:pointer;
+    background:radial-gradient(circle at 35% 30%,#4a5a8a,#1b2340);color:#fff;font:800 17px/1 system-ui;
+    display:flex;align-items:center;justify-content:center;user-select:none;
+    box-shadow:0 4px 0 #0007,0 8px 18px #0006;-webkit-tap-highlight-color:transparent}
+  .mkl-b:active{transform:translateY(3px);box-shadow:0 1px 0 #0007}
+  #mkl-home{background:radial-gradient(circle at 35% 30%,#a855f7,#5b21b6);font-size:20px}
+  #mkl-ask{position:fixed;inset:0;z-index:100000;display:none;align-items:center;justify-content:center;
+    background:#05060cdd;font-family:system-ui,-apple-system,sans-serif;color:#fff;padding:18px}
+  #mkl-ask.mkl-on{display:flex}
+  #mkl-box{background:#141c33;border:2px solid #ffffff26;border-radius:20px;padding:20px;
+    width:min(420px,92vw);text-align:center}
+  #mkl-box h3{font-size:19px;margin-bottom:6px}
+  #mkl-box p{font-size:14px;opacity:.82;margin-bottom:14px;line-height:1.5}
+  .mkl-btn{font:900 15px system-ui;padding:12px 18px;border:none;border-radius:14px;cursor:pointer;
+    margin:4px;min-width:140px}
+  .mkl-yes{background:linear-gradient(180deg,#ffe27b,#f0a01b);color:#1a1206;box-shadow:0 4px 0 #9a6408}
+  .mkl-no{background:#ffffff12;color:#dbe7ff;border:1.5px solid #ffffff26}
+</style>
+<div id="mkl-bar">
+  <div class="mkl-b" id="mkl-home" title="Вернуться в Планету игр">🪐</div>
+  <div class="mkl-b" id="mkl-in" title="Приблизить экран">🔍+</div>
+  <div class="mkl-b" id="mkl-out" title="Отдалить экран">🔍−</div>
+</div>
+<div id="mkl-ask"><div id="mkl-box">
+  <h3>🪐 Вернуться в Планету игр?</h3>
+  <p>Игра закроется, и ты попадёшь в лобби, где стоят все игры.</p>
+  <button class="mkl-btn mkl-yes" id="mkl-ok">🪐 Да, в лобби</button>
+  <button class="mkl-btn mkl-no" id="mkl-cancel">✖️ Остаться</button>
+</div></div>
+<script>
+(function(){
+  var ЛОББИ = 'https://maksimdodychin.github.io/mark-arcade/';
+  var К = 1, бар = document.getElementById('mkl-bar');
+  function мигнуть(){ бар.classList.add('mkl-act'); clearTimeout(бар._t);
+    бар._t = setTimeout(function(){ бар.classList.remove('mkl-act'); }, 1800); }
+  /* 🔍 приближение: если игра сама умеет (window.__zoom) — просим её,
+     иначе увеличиваем всю страницу и говорим игре пересчитать размер экрана. */
+  function зум(шаг){
+    К = Math.max(0.7, Math.min(1.8, +(К + шаг).toFixed(2)));
+    if (typeof window.__zoom === 'function') { window.__zoom(К); }
+    else {
+      document.body.style.transformOrigin = 'center center';
+      document.body.style.zoom = К;
+      try { window.dispatchEvent(new Event('resize')); } catch(e){}
+    }
+    мигнуть();
+  }
+  document.getElementById('mkl-in').onclick  = function(){ зум(+0.15); };
+  document.getElementById('mkl-out').onclick = function(){ зум(-0.15); };
+  var ask = document.getElementById('mkl-ask');
+  document.getElementById('mkl-home').onclick = function(){ ask.classList.add('mkl-on'); };
+  document.getElementById('mkl-cancel').onclick = function(){ ask.classList.remove('mkl-on'); };
+  document.getElementById('mkl-ok').onclick = function(){ location.href = ЛОББИ; };
+  ask.onclick = function(e){ if (e.target === ask) ask.classList.remove('mkl-on'); };
+  мигнуть();
+})();
+</script>
+
 
 <script>
 /* scoped PWA updater: the installed offline copy stays until a verified replacement activates. */
