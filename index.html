@@ -203,7 +203,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "0f526d969d";</script>
+  <script>window.__APP_VER = "f32ffc8049";</script>
 </head>
 <body>
 
@@ -760,10 +760,25 @@ const НОВОСТИ = [
   'кинотеатры и несколько жилых домов.',
   'Бытовая техника сходит с ума.',
   'Причина, похоже, — неполадки в сети.',
+  'Подробности — в следующем выпуске.',
+];
+/* 📺 ФИНАЛЬНЫЙ ВЫПУСК: его показывают, когда ты прошёл игру (сюжет Марка) */
+const НОВОСТИ_ФИНАЛ = [
+  'В городе опять происходит',
+  'что-то необъяснимое.',
+  'Техника САМА начинает чиниться',
+  'и больше никому не подчиняется.',
+  'Инопланетяне то ли сдались,',
+  'то ли кто-то их победил.',
+  'Слава тому, кто остановил',
+  'это восстание.',
 ];
 const БЕГУЩАЯ = '   ⚡ СПЕЦИАЛИСТЫ ПРОСЯТ НЕ ПОДХОДИТЬ К РАБОТАЮЩИМ ПРИБОРАМ ' +
   '⚡ ОЧЕВИДЦЫ СЛЫШАТ СТРАННЫЙ ГУЛ ИЗ РОЗЕТОК ⚡ РЕМОНТНЫЕ БРИГАДЫ НЕ НАХОДЯТ ПОЛОМКИ ' +
   '⚡ ЖИТЕЛЕЙ ПРОСЯТ СОХРАНЯТЬ СПОКОЙСТВИЕ ';
+const БЕГУЩАЯ_ФИНАЛ = '   ✅ ПРИБОРЫ ПО ВСЕМУ ГОРОДУ ВКЛЮЧАЮТСЯ САМИ И РАБОТАЮТ КАК ПОЛОЖЕНО ' +
+  '✅ ГУЛ ИЗ РОЗЕТОК ПРЕКРАТИЛСЯ ✅ РЕМОНТНЫЕ БРИГАДЫ РАЗВОДЯТ РУКАМИ: ЧИНИТЬ НЕЧЕГО ' +
+  '✅ ГОРОД БЛАГОДАРИТ НЕИЗВЕСТНОГО ГЕРОЯ ';
 function buildNewsTV(maxZ) {
   const cv = document.createElement('canvas'); cv.width = 640; cv.height = 360;
   const ctx = cv.getContext('2d');
@@ -783,7 +798,12 @@ function buildNewsTV(maxZ) {
   рисоватьНовости(0);
 }
 function рисоватьНовости(t) {
-  const { ctx, cv } = newsTV, W = cv.width, H = cv.height;
+  const { ctx, cv } = newsTV;
+  рисоватьВыпуск(ctx, cv, t, НОВОСТИ, 'СРОЧНЫЕ НОВОСТИ', БЕГУЩАЯ, '#c0182a', 'СРОЧНО');
+}
+/* один и тот же выпуск рисуем и на телевизоре в квартире, и на весь экран в финале */
+function рисоватьВыпуск(ctx, cv, t, строки, шапка, бегущая, цвет, метка) {
+  const W = cv.width, H = cv.height;
   const ф = ctx.createLinearGradient(0, 0, 0, H);
   ф.addColorStop(0, '#132a4a'); ф.addColorStop(1, '#07101d');
   ctx.fillStyle = ф; ctx.fillRect(0, 0, W, H);
@@ -792,20 +812,20 @@ function рисоватьНовости(t) {
   ctx.beginPath(); ctx.ellipse(112, 128, 26, 30, 0, 0, 7); ctx.fill();
   ctx.fillStyle = '#0d1f36'; ctx.fillRect(40, 238, 170, 60);
   // шапка «срочные новости»
-  ctx.fillStyle = '#c0182a'; ctx.fillRect(0, 8, W, 46);
+  ctx.fillStyle = цвет; ctx.fillRect(0, 8, W, 46);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 30px system-ui, sans-serif';
-  ctx.fillText('СРОЧНЫЕ НОВОСТИ', 18, 42);
+  ctx.fillText(шапка, 18, 42);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ffe0e0'; ctx.font = 'bold 16px system-ui, sans-serif';
   ctx.fillText('ПРЯМОЙ ЭФИР', W-16, 37);
   if (Math.floor(t*2) % 2 === 0) {                    // мигающий «прямой эфир»
-    ctx.fillStyle = '#ff4d4d'; ctx.beginPath(); ctx.arc(W-124, 31, 8, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff4d4d'; ctx.beginPath(); ctx.arc(W-142, 31, 7, 0, 7); ctx.fill();
   }
   ctx.textAlign = 'left';
   // строки новостей проявляются по одной
   ctx.font = '19px system-ui, sans-serif';
-  НОВОСТИ.forEach((стр, i) => {
-    const п = Math.min(1, Math.max(0, (t - 1.4 - i*1.5) / 0.6));
+  строки.forEach((стр, i) => {
+    const п = Math.min(1, Math.max(0, (t - 1.4 - i*1.2) / 0.6));
     if (п <= 0) return;
     ctx.fillStyle = 'rgba(233,243,255,' + п.toFixed(2) + ')';
     ctx.fillText(стр, 220, 102 + i*30);
@@ -815,11 +835,44 @@ function рисоватьНовости(t) {
   ctx.save(); ctx.beginPath(); ctx.rect(96, H-44, W-96, 44); ctx.clip();
   ctx.fillStyle = '#ffd24a'; ctx.font = 'bold 18px system-ui, sans-serif';
   const шаг = (t*70) % 2200;
-  ctx.fillText(БЕГУЩАЯ + БЕГУЩАЯ, W - шаг, H-16);
+  ctx.fillText(бегущая + бегущая, W - шаг, H-16);
   ctx.restore();
-  ctx.fillStyle = '#c0182a'; ctx.fillRect(0, H-44, 92, 44);
+  ctx.fillStyle = цвет; ctx.fillRect(0, H-44, 92, 44);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 18px system-ui, sans-serif';
-  ctx.fillText('СРОЧНО', 12, H-16);
+  ctx.fillText(метка, 12, H-16);
+}
+
+/* 📺 ФИНАЛЬНЫЙ ВЫПУСК на весь экран — его показывают, когда ты прошёл игру.
+   Сюжет Марка: техника чинится сама, пришельцы то ли сдались, то ли их победили. */
+function показатьФинальныйВыпуск(потом) {
+  const слой = document.createElement('div');
+  слой.style.cssText = 'position:fixed;inset:0;z-index:60;background:#05070c;display:flex;' +
+    'flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:18px';
+  const рамка = document.createElement('div');
+  рамка.style.cssText = 'border:12px solid #15171c;border-radius:18px;box-shadow:0 20px 60px #000,' +
+    '0 0 0 3px #2a2f3a inset;background:#000;max-width:min(92vw,780px)';
+  const cv = document.createElement('canvas'); cv.width = 640; cv.height = 360;
+  cv.style.cssText = 'width:100%;height:auto;display:block;border-radius:6px';
+  рамка.appendChild(cv); слой.appendChild(рамка);
+  const кн = document.createElement('button');
+  кн.textContent = '▶️ ДАЛЬШЕ';
+  кн.style.cssText = 'font:900 17px system-ui;padding:12px 24px;border:none;border-radius:14px;' +
+    'background:linear-gradient(180deg,#8ae0ff,#2f7fd0);color:#04121f;box-shadow:0 5px 0 #17456f;cursor:pointer';
+  слой.appendChild(кн);
+  document.body.appendChild(слой);
+  const ctx = cv.getContext('2d');
+  let t = 0, жив = true, было = performance.now();
+  function кадр(now) {
+    if (!жив) return;
+    t += Math.min(0.05, (now - было)/1000); было = now;
+    рисоватьВыпуск(ctx, cv, t, НОВОСТИ_ФИНАЛ, 'ХОРОШИЕ НОВОСТИ', БЕГУЩАЯ_ФИНАЛ, '#15803d', 'ФИНАЛ');
+    requestAnimationFrame(кадр);
+  }
+  requestAnimationFrame(кадр);
+  const закрыть = () => { if (!жив) return; жив = false; слой.remove(); потом && потом(); };
+  кн.onclick = закрыть;
+  setTimeout(закрыть, 14000);
+  try { tone(520, 'sine', 0.25, 0.08); setTimeout(() => tone(700, 'sine', 0.3, 0.08), 260); } catch (_) {}
 }
 function рисоватьПомехи(t) {
   const { ctx, cv } = newsTV, W = cv.width, H = cv.height;
@@ -2951,9 +3004,12 @@ function victory(h) {
   if (roomLight) roomLight.intensity = 2;
   bigMsg('💠 СЕРДЦЕ РАЗБИТО', 2.4, '#8ae0ff');
   setTimeout(() => {
-    $('winScreen').classList.remove('hidden');
-    $('winText').innerHTML = 'Сердце пришельцев разбито — и вся техника на планете разом погасла.<br>'
-      + 'Телевизоры, пылесосы и утюги снова просто вещи. Ты прошёл <b>все 100 комнат</b>.';
+    показатьФинальныйВыпуск(() => {
+      $('winScreen').classList.remove('hidden');
+      $('winText').innerHTML = 'Сердце пришельцев разбито — и вся техника на планете разом погасла.<br>'
+        + 'А наутро телевизор сказал, что техника чинится сама и больше никому не подчиняется.<br>'
+        + 'Ты прошёл <b>все 100 комнат</b>.';
+    });
   }, 2600);
 }
 
@@ -3374,7 +3430,8 @@ window.__мкИгра = {
 };
 
 window.__dbg = {
-  get state(){ return state; }, get level(){ return level; },
+  get state(){ return state; },
+  finalNews(){ показатьФинальныйВыпуск(); return true; }, get level(){ return level; },
   get news(){ return newsTV ? { фаза:newsTV.фаза, t:+newsTV.t.toFixed(1) } : null; },
   newsPng(){ return newsTV ? newsTV.cv.toDataURL('image/png') : null; },
   lookNews(){ if (!newsTV) return null;

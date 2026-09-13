@@ -1,5 +1,5 @@
 // Scoped offline application updater; version changes with the payload and updater.
-const VERSION = '0f526d969d';
+const VERSION = 'f32ffc8049';
 const PREFIX = "technobunt-";
 const CACHE = PREFIX + VERSION;
 const SCOPE = new URL(self.registration.scope);
