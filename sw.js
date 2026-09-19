@@ -1,5 +1,5 @@
 // Scoped offline application updater; version changes with the payload and updater.
-const VERSION = '0a6ec37b15';
+const VERSION = '1544212a72';
 const PREFIX = "technobunt-";
 const CACHE = PREFIX + VERSION;
 const SCOPE = new URL(self.registration.scope);
@@ -29,9 +29,13 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const names = await caches.keys();
+    // ⚠️ ЖАЛОБА МАРКА 19.09.2026: при ПЕРВОМ заходе воркер перезагружал страницу
+    //    на адрес ?v=…, и всё, что человек успел сделать (например, создал комнату),
+    //    пропадало. Перезагружаем окна ТОЛЬКО если правда заменили старую версию.
+    const hadOld = names.some(name => name.startsWith(PREFIX) && name !== CACHE);
     await Promise.all(names.filter(name => name.startsWith(PREFIX) && name !== CACHE).map(name => caches.delete(name)));
     await self.clients.claim();
-    const windows = await self.clients.matchAll({ type: 'window' });
+    const windows = hadOld ? await self.clients.matchAll({ type: 'window' }) : [];
     for (const client of windows) {
       const url = new URL(client.url);
       if (!belongs(url) || url.searchParams.get('v') === VERSION) continue;
