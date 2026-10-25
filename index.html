@@ -203,7 +203,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "062df2c9c7";</script>
+  <script>window.__APP_VER = "e2140930db";</script>
 </head>
 <body>
 
@@ -229,6 +229,7 @@
   <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
     <button class="btn small hidden" id="continueBtn">ПРОДОЛЖИТЬ</button>
     <button class="btn small" id="menuLevelsBtn">ВЫБРАТЬ УРОВЕНЬ</button>
+    <button class="btn small" id="menuKinoBtn">🎬 МУЛЬТИК</button>
     <button class="btn small" id="menuAchBtn">🏅 ДОСТИЖЕНИЯ</button>
   </div>
   <div class="sub" style="font-size:12px;opacity:.65" id="ctrlHint"></div>
@@ -794,7 +795,7 @@ function buildNewsTV(maxZ) {
   g.position.set(0, 1.95, maxZ - 0.26);                // ближняя стена, ровно за спиной у старта
   g.rotation.y = Math.PI;
   roomGroup.add(g);
-  newsTV = { cv, ctx, tex, свет, t:0, фаза:'новости', перерис:0, сбой:false };
+  newsTV = { cv, ctx, tex, свет, экран, t:0, фаза:'новости', перерис:0, сбой:false };
   рисоватьНовости(0);
 }
 function рисоватьНовости(t) {
@@ -968,6 +969,268 @@ function updateNewsTV(dt) {
     n.свет.color.setHex(0x5cff8f); n.свет.intensity = 15 + Math.sin(t*3)*6;
   }
   n.tex.needsUpdate = true;
+}
+
+/* ═══════════ 🎬 МУЛЬТИК-ЗАСТАВКА (раскадровка Марка 24–25.10.2026) ═══════════
+   «Ты лежишь на диване с попкорном и пультом, темно. И потом канал прерывается новостями: в городе происходит ряд
+   чего-то необъяснимого… Когда показывают, что ломается бытовая техника, появляется магазин, и отделы пылесосов,
+   тостеры начинают слегка искриться. То же самое светофоры — начинают мигать и погасать. Потом сбой, типа „нет сигнала“,
+   и появляются инопланетяне. И потом ты встаёшь с дивана и видишь, что твоя техника идёт на тебя — и игра начинается.»
+   Снято прямо в квартире первой комнаты: перед телевизором ставим диван, свет гасим, на экране — свои картинки.
+   Сам при первом «Начать», в меню — «🎬 Мультик». */
+const КИНО = { t:0, кадр:-1, диван:null, руки:null, после:null, плашка:null, кнопка:null, свет0:0, лампы:[], щёлк:0 };
+const НОВОСТИ_МУЛЬТ = [                               // порядок — как в раскадровке Марка
+  'В городе — ряд необъяснимых аварий.',
+  'Бытовая техника сходит с ума:',
+  'в магазинах искрят пылесосы и тостеры.',
+  'Мигают и гаснут светофоры и фонари.',
+  'Без света остались школы и дома.',
+  'Подробности — в следующем выпуске.',
+];
+const КИНО_КАДРЫ = [                                   // [до какой секунды, подпись, голос, что на экране]
+  [3.6, 'Вечер. Темно. Ты лежишь на диване с попкорном и пультом — по телевизору ГОНКИ ПЫЛЕСОСОВ!', 'обычный', 'гонка'],
+  [8.2, '🎙 Комментатор: Итак, дорогие телезрители, последний круг гонки пылесосов на замковой трассе!', 'диктор', 'гонка'],
+  [13.2, '🎙 Комментатор: Красный робот-мойщик окон держится впереди… Но синий моющий пылесос не сдаётся!', 'диктор', 'гонка'],
+  [18.4, '🎙 Комментатор: Синий обгоняет! Обгоняет!! До финиша чуть-чуть… сейчас будет ГО-О-ОЛ… ой, то есть ФИНИ…', 'диктор', 'гонка'],
+  [20.4, '', null, 'срочно'],
+  [23.9, '', null, 'диктор'],
+  [28.4, '', null, 'магазин'],
+  [32.9, '', null, 'светофоры'],
+  [35.9, '', null, 'диктор'],
+  [39.1, 'Ты: Э… Что с телевизором?! Пульт не слушается!', 'мальчик', 'помехи'],
+  [45.9, '👽 Пришелец: Жители Земли! Это не поломка. Это МЫ. Ваша техника теперь подчиняется нам!', 'пришелец', 'пришелец'],
+  [50.9, 'Ты: Ой-ой… Моя техника идёт на меня!', 'мальчик', 'пришелец'],
+];
+function киноТехноНужно() { try { return !localStorage.getItem('техно-мульт'); } catch (_) { return false; } }
+function киноРуки() {                                   // 🍿 миска попкорна и 📱 пульт — видно внизу кадра
+  const g = new THREE.Group(), кожа = new THREE.MeshStandardMaterial({ color:0xe8b48f, roughness:0.6 });
+  const п = new THREE.Group(); g.add(п); п.position.set(0.15, -0.2, -0.42); п.rotation.set(0.55, -0.25, 0);
+  п.add(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.025, 0.22), new THREE.MeshStandardMaterial({ color:0x1f2329, roughness:0.5 })));
+  for (let i = 0; i < 6; i++) { const к = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.01, 8), new THREE.MeshStandardMaterial({ color:i ? 0x9ca3af : 0xdc2626, emissive:i ? 0x000000 : 0x7f1d1d }));
+    к.position.set(i % 2 ? 0.016 : -0.016, 0.015, -0.07 + Math.floor(i/2)*0.04); п.add(к); }
+  const р1 = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.12, 6, 10), кожа); р1.rotation.x = Math.PI/2; р1.position.set(0.035, -0.015, 0.06); п.add(р1);
+  const м = new THREE.Group(); g.add(м); м.position.set(-0.2, -0.27, -0.55); м.rotation.x = 0.55; м.scale.setScalar(0.8);
+  const миска = new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [0.09, 0.005], [0.12, 0.07], [0.125, 0.075]].map(([a, b]) => new THREE.Vector2(a, b)), 28), new THREE.MeshStandardMaterial({ color:0xdc2626, roughness:0.45, side:THREE.DoubleSide }));
+  м.add(миска);
+  const зГ = new THREE.SphereGeometry(0.008, 8, 6), зМ = new THREE.MeshStandardMaterial({ color:0xfffbe8, roughness:0.9, emissive:0x6b5a30, emissiveIntensity:0.6 }), зМ2 = new THREE.MeshStandardMaterial({ color:0xf5c84c, roughness:0.8, emissive:0x5a4010, emissiveIntensity:0.5 });
+  for (let i = 0; i < 70; i++) { const a = Math.random()*Math.PI*2, r = Math.sqrt(Math.random())*0.1, з = new THREE.Group();   // пушистый комочек из 4 шариков
+    for (let j = 0; j < 4; j++) { const ш = new THREE.Mesh(зГ, j || i % 5 ? зМ : зМ2); ш.position.set((Math.random() - 0.5)*0.012, (Math.random() - 0.5)*0.012, (Math.random() - 0.5)*0.012); з.add(ш); }
+    з.position.set(Math.cos(a)*r, 0.06 + Math.random()*0.03 + (0.1 - r)*0.25, Math.sin(a)*r); м.add(з); }
+  const р2 = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.12, 6, 10), кожа); р2.rotation.set(Math.PI/2, 0, 0.6); р2.position.set(0.08, 0.02, 0.06); м.add(р2);
+  camera.add(g); return g;
+}
+/* 📺 картинки на экране телевизора во время мультика */
+function экранКанал(ctx, W, H, t) {                    // мультики: солнышко прыгает по холмам
+  const н = ctx.createLinearGradient(0, 0, 0, H); н.addColorStop(0, '#7dd3fc'); н.addColorStop(1, '#bae6fd'); ctx.fillStyle = н; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#4ade80'; ctx.beginPath(); ctx.ellipse(160, H + 40, 260, 150, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#22c55e'; ctx.beginPath(); ctx.ellipse(500, H + 60, 280, 170, 0, 0, 7); ctx.fill();
+  const x = 80 + ((t*120) % 520), y = 210 - Math.abs(Math.sin(t*4))*110;
+  ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.arc(x, y, 34, 0, 7); ctx.fill();
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x - 11, y - 6, 4, 0, 7); ctx.arc(x + 11, y - 6, 4, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y + 4, 14, 0.2, Math.PI - 0.2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = 'bold 20px system-ui'; ctx.fillText('📺 МУЛЬТИКИ', 16, 32);
+}
+/* 🏁 «ГОНКИ ПЫЛЕСОСОВ» НА ТЕЛЕВИЗОРЕ — настоящее 3D (Марк 25.10): круглая трасса у замка, синий МОЮЩИЙ пылесос обгоняет
+   красного РОБОТА-МОЙЩИКА ОКОН у самого финиша, на трибунах болеют другие пылесосы, комментатор кричит, как в футболе.
+   Отдельная сцена рисуется в текстуру и показывается на экране телевизора. */
+const ГОН = { сцена:null, кам:null, цель:null, синий:null, красный:null, зрители:[], флаги:[], верх:null, низ:null, низТекст:'' };
+const ГОН_R = { к:22.5, с:25.5 };                       // дорожки: красный — внутренняя, синий — внешняя
+function гонкаХолст(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; const т = new THREE.CanvasTexture(c); т.colorSpace = THREE.SRGBColorSpace; return { c, g:c.getContext('2d'), т }; }
+function гонкаСобрать() {
+  if (ГОН.сцена) return;
+  const с = new THREE.Scene(); ГОН.сцена = с; с.environment = КИНО.env || null; с.background = new THREE.Color(0x8ec5ff); с.fog = new THREE.Fog(0xcfe6ff, 70, 190);
+  с.add(new THREE.HemisphereLight(0xeaf6ff, 0x4d7c2a, 1.2)); const солн = new THREE.DirectionalLight(0xfff1d6, 1.6); солн.position.set(30, 50, 20); с.add(солн);
+  const мат = (c, r) => new THREE.MeshStandardMaterial({ color:c, roughness:r ?? 0.8 });
+  const трава = new THREE.Mesh(new THREE.CircleGeometry(160, 48), мат(0x4d9a2e, 1)); трава.rotation.x = -Math.PI/2; с.add(трава);
+  const асф = new THREE.Mesh(new THREE.RingGeometry(20.5, 27.5, 96), мат(0x4b5563, 0.9)); асф.rotation.x = -Math.PI/2; асф.position.y = 0.02; с.add(асф);
+  const полосыТ = гонкаХолст(256, 16); for (let i = 0; i < 16; i++) { полосыТ.g.fillStyle = i % 2 ? '#dc2626' : '#ffffff'; полосыТ.g.fillRect(i*16, 0, 16, 16); } полосыТ.т.wrapS = THREE.RepeatWrapping; полосыТ.т.repeat.set(12, 1);
+  for (const r of [20.5, 27.5]) { const б = new THREE.Mesh(new THREE.TorusGeometry(r, 0.35, 6, 120), new THREE.MeshStandardMaterial({ map:полосыТ.т, roughness:0.6 })); б.rotation.x = Math.PI/2; б.position.y = 0.15; с.add(б); }   // бордюры
+  const раз = new THREE.Mesh(new THREE.RingGeometry(23.9, 24.1, 96, 1), new THREE.MeshBasicMaterial({ color:0xf8fafc })); раз.rotation.x = -Math.PI/2; раз.position.y = 0.03; с.add(раз);
+  // 🏁 финиш: шахматка поперёк трассы + арка
+  const шахТ = гонкаХолст(64, 256); for (let i = 0; i < 2; i++) for (let j = 0; j < 8; j++) { шахТ.g.fillStyle = (i + j) % 2 ? '#111' : '#fff'; шахТ.g.fillRect(i*32, j*32, 32, 32); }
+  const фин = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 7), new THREE.MeshBasicMaterial({ map:шахТ.т })); фин.rotation.x = -Math.PI/2; фин.position.set(24, 0.04, 0); с.add(фин);
+  for (const x of [20, 28]) { const ст = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 6, 10), мат(0xe5e7eb, 0.4)); ст.position.set(x, 3, 0); с.add(ст); }
+  const ленТ = гонкаХолст(512, 64); ленТ.g.fillStyle = '#111'; ленТ.g.fillRect(0, 0, 512, 64); for (let i = 0; i < 32; i++) for (let j = 0; j < 2; j++) if ((i + j) % 2) { ленТ.g.fillStyle = '#fff'; ленТ.g.fillRect(i*16, j*32, 16, 32); }
+  ленТ.g.fillStyle = '#dc2626'; ленТ.g.fillRect(150, 8, 212, 48); ленТ.g.fillStyle = '#fff'; ленТ.g.font = '900 38px system-ui'; ленТ.g.textAlign = 'center'; ленТ.g.fillText('ФИНИШ', 256, 46);
+  const лента = new THREE.Mesh(new THREE.BoxGeometry(8.4, 1.1, 0.2), [мат(0x111111), мат(0x111111), мат(0x111111), мат(0x111111), new THREE.MeshStandardMaterial({ map:ленТ.т }), new THREE.MeshStandardMaterial({ map:ленТ.т })]);
+  лента.position.set(24, 6, 0); лента.rotation.y = Math.PI/2; с.add(лента);
+  // 🏰 замок на холме за трассой
+  const камень = мат(0xb8b2a8, 0.95), крыша = мат(0xb91c1c, 0.7), холм = new THREE.Mesh(new THREE.SphereGeometry(46, 32, 16, 0, Math.PI*2, 0, Math.PI/2), мат(0x5b8f2e, 1));
+  холм.scale.y = 0.17; холм.position.set(-8, 0, -64); с.add(холм);
+  const замок = new THREE.Group(); замок.position.set(-8, 5.6, -64); замок.scale.setScalar(1.4); с.add(замок);   // ближе к трассе — видно в кадре
+  const стена = new THREE.Mesh(new THREE.BoxGeometry(40, 9, 4), камень); стена.position.y = 4.5; замок.add(стена);
+  for (let x = -19; x <= 19; x += 3) { const з = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.4, 4.2), камень); з.position.set(x, 9.6, 0); замок.add(з); }
+  const ворота = new THREE.Mesh(new THREE.BoxGeometry(5, 6, 0.4), мат(0x3f2a1a, 0.9)); ворота.position.set(0, 3, 2.1); замок.add(ворота);
+  for (const [x, h, r] of [[-20, 16, 3.2], [20, 16, 3.2], [-7, 20, 3.6], [7, 20, 3.6]]) { const б = new THREE.Mesh(new THREE.CylinderGeometry(r, r*1.05, h, 18), камень); б.position.set(x, h/2, 0); замок.add(б);
+    const к = new THREE.Mesh(new THREE.ConeGeometry(r*1.3, 7, 18), крыша); к.position.set(x, h + 3.5, 0); замок.add(к);
+    const ф = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.8), new THREE.MeshStandardMaterial({ color:[0x2563eb, 0xfacc15, 0x16a34a, 0xa855f7][ГОН.флаги.length % 4], side:THREE.DoubleSide })); ф.position.set(x + 1.5, h + 9, 0); замок.add(ф); ГОН.флаги.push(ф);
+    const д = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4, 6), мат(0x44403c)); д.position.set(x, h + 8.5, 0); замок.add(д); }
+  // 🏟 трибуна у финиша: на ступенях болеют пылесосы
+  for (let ряд = 0; ряд < 4; ряд++) { const ст = new THREE.Mesh(new THREE.BoxGeometry(3, 1, 26), мат(0x7c2d12, 0.85)); ст.position.set(33 + ряд*3, 0.5 + ряд, 0); ст.scale.y = 1 + ряд*2; ст.position.y = (1 + ряд*2)/2; с.add(ст);
+    for (let i = 0; i < 9; i++) { const цв = [0xef4444, 0x3b82f6, 0xfacc15, 0x22c55e, 0xf472b6, 0xa855f7, 0xf97316][(i + ряд*3) % 7], z = -11 + i*2.75, y = 1 + ряд*2;
+      const з = new THREE.Group(); з.position.set(33 + ряд*3, y, z); з.rotation.y = -Math.PI/2; с.add(з);
+      if ((i + ряд) % 2) { const к = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 0.35, 18), мат(цв, 0.4)); к.position.y = 0.2; з.add(к);                       // робот-пылесос
+        const кн = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.12, 12), мат(0x111111, 0.4)); кн.position.y = 0.42; з.add(кн); }
+      else { const к = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.6, 6, 12), мат(цв, 0.4)); к.position.y = 0.75; з.add(к);                                           // обычный пылесос
+        const шл = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.07, 6, 16, Math.PI*1.3), мат(0x1f2937, 0.6)); шл.position.set(0, 1.3, 0); з.add(шл); }
+      for (const s of [-1, 1]) { const гл = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color:0xffffff })); гл.position.set(s*0.18, (i + ряд) % 2 ? 0.5 : 1.0, 0.42); з.add(гл);
+        const зр = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), new THREE.MeshBasicMaterial({ color:0x111111 })); зр.position.set(s*0.18, (i + ряд) % 2 ? 0.5 : 1.0, 0.52); з.add(зр); }
+      ГОН.зрители.push({ з, y, ф:Math.random()*6 }); } }
+  // 🔵 синий МОЮЩИЙ пылесос (как враг-«мойщик» из игры, только на колёсах)
+  const син = buildWasher(0x2563eb); син.userData.legsGroup.visible = false; for (const x of [-0.6, 0.6]) for (const z of [-0.5, 0.6]) { const к = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 16), мат(0x111111, 0.6)); к.rotation.z = Math.PI/2; к.position.set(x, 0.32, z); син.add(к); }
+  син.scale.setScalar(1.5); с.add(син); ГОН.синий = син;
+  // 🔴 красный РОБОТ-МОЙЩИК ОКОН: квадратный, две крутящиеся круглые тряпки снизу, страховочный шнур
+  const кр = new THREE.Group(); с.add(кр); ГОН.красный = кр;
+  const корп = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.7, 2.6), мат(0xdc2626, 0.35)); корп.position.y = 0.75; кр.add(корп);
+  const верх = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 2.2), мат(0xfca5a5, 0.3)); верх.position.y = 1.15; кр.add(верх);
+  ГОН.тряпки = []; for (const z of [-0.65, 0.65]) { const т = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.28, 16), мат(0xf1f5f9, 0.95)); т.position.set(0, 0.28, z); кр.add(т); ГОН.тряпки.push(т); }
+  for (const s of [-1, 1]) { const гл = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), new THREE.MeshBasicMaterial({ color:0xfef08a })); гл.position.set(s*0.45, 0.85, 1.32); кр.add(гл); }
+  const шнур = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.05, 6, 20, Math.PI*1.4), мат(0xfacc15, 0.5)); шнур.position.set(0, 1.6, -0.6); шнур.rotation.y = Math.PI/2; кр.add(шнур);
+  const антенна = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8, 6), мат(0x111111)); антенна.position.set(0.8, 1.6, -0.8); кр.add(антенна);
+  // 🎥 камера трансляции и плашки поверх картинки
+  ГОН.кам = new THREE.PerspectiveCamera(50, 16/9, 0.3, 400); с.add(ГОН.кам);
+  ГОН.верх = гонкаХолст(1024, 64); ГОН.низ = гонкаХолст(1024, 80);
+  const плашка = (х, h, y) => { const м = new THREE.Mesh(new THREE.PlaneGeometry(1.658, h), new THREE.MeshBasicMaterial({ map:х.т, transparent:true, depthTest:false, fog:false })); м.position.set(0, y, -1); м.renderOrder = 10; ГОН.кам.add(м); };
+  плашка(ГОН.верх, 0.1, 0.4165); плашка(ГОН.низ, 0.13, -0.4015);
+  ГОН.цель = new THREE.WebGLRenderTarget(640, 360);
+}
+function гонкаПлашки(t, текст) {
+  const в = ГОН.верх.g; в.clearRect(0, 0, 1024, 64); в.fillStyle = 'rgba(15,23,42,.85)'; в.fillRect(0, 0, 1024, 64);
+  в.fillStyle = '#fff'; в.font = 'bold 34px system-ui'; в.fillText('🏁 ГОНКИ ПЫЛЕСОСОВ · ЗАМКОВАЯ ТРАССА', 18, 44); в.fillStyle = '#fde047'; в.fillText('КРУГ 3/3', 840, 44);
+  if (Math.floor(t*2) % 2) { в.fillStyle = '#ef4444'; в.beginPath(); в.arc(815, 32, 10, 0, 7); в.fill(); } ГОН.верх.т.needsUpdate = true;
+  if (текст !== ГОН.низТекст) { ГОН.низТекст = текст; const н = ГОН.низ.g; н.clearRect(0, 0, 1024, 80); н.fillStyle = 'rgba(15,23,42,.85)'; н.fillRect(0, 0, 1024, 80);
+    н.fillStyle = '#fff'; н.font = 'bold 30px system-ui'; н.fillText(текст, 20, 52); ГОН.низ.т.needsUpdate = true; }
+}
+function гонкаКадр(t, dt) {                            // t — секунды гонки; рисуем в текстуру
+  гонкаСобрать();
+  const θк = -2.4 + t*0.1194, θс = -2.791 + t*0.1484;     // синий быстрее: обгоняет на 13-й секунде, к 18-й — у самой финишной черты
+  const ставь = (о, θ, R) => { о.position.set(Math.cos(θ)*R, 0, Math.sin(θ)*R); о.rotation.y = -θ; };   // едут против часовой: мордой по касательной
+  ставь(ГОН.красный, θк, ГОН_R.к); ставь(ГОН.синий, θс, ГОН_R.с); ГОН.синий.rotation.y += Math.PI; ГОН.красный.position.y = Math.abs(Math.sin(t*14))*0.05;
+  ГОН.тряпки.forEach(т => т.rotation.y += dt*20);
+  ГОН.зрители.forEach(з => { з.з.position.y = з.y + Math.abs(Math.sin(t*7 + з.ф))*0.5; });
+  ГОН.флаги.forEach((ф, i) => ф.rotation.y = Math.sin(t*3 + i)*0.3);
+  const К = ГОН.кам, θм = (θк + θс)/2;
+  if (t < 8) { К.position.set(Math.cos(θм - 0.32)*13, 4.5, Math.sin(θм - 0.32)*13); К.lookAt(Math.cos(θм)*24, 4.2, Math.sin(θм)*24); }                     // с поля: панорама, сзади замок
+  else if (t < 14) { const p = ГОН.синий.position, θ = θс; К.position.set(Math.cos(θ - 0.18)*27.5, 3.2, Math.sin(θ - 0.18)*27.5); К.lookAt(Math.cos(θ + 0.12)*24, 1.2, Math.sin(θ + 0.12)*24); }   // сзади-сбоку: погоня
+  else { К.position.set(30, 4.5, 7); К.lookAt(Math.cos(θм)*24, 1, Math.sin(θм)*24); }                                                                         // у финиша, рядом трибуна
+  гонкаПлашки(t, θс > θк ? '🎙 СИНИЙ МОЮЩИЙ ОБГОНЯЕТ РОБОТА-МОЙЩИКА ОКОН!' : '🎙 КРАСНЫЙ РОБОТ ЛИДИРУЕТ… СИНИЙ ДОГОНЯЕТ!');
+  const было = renderer.getRenderTarget(); renderer.setRenderTarget(ГОН.цель); renderer.render(ГОН.сцена, К); renderer.setRenderTarget(было);
+}
+function экранСрочно(ctx, W, H, t) {                   // ⚡ канал прерывается
+  ctx.fillStyle = Math.floor(t*6) % 2 ? '#c0182a' : '#7f1d1d'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '900 44px system-ui'; ctx.fillText('⚡ ПРЕРЫВАЕМ ПРОГРАММУ', W/2, H/2 - 14);
+  ctx.font = 'bold 28px system-ui'; ctx.fillText('СРОЧНЫЙ ВЫПУСК НОВОСТЕЙ', W/2, H/2 + 30); ctx.textAlign = 'left';
+}
+function экранПодпись(ctx, W, H, текст) { ctx.fillStyle = '#0b1728'; ctx.fillRect(0, H - 50, W, 50); ctx.fillStyle = '#c0182a'; ctx.fillRect(0, H - 50, 110, 50);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 18px system-ui'; ctx.fillText('СРОЧНО', 14, H - 18); ctx.fillStyle = '#ffd24a'; ctx.font = 'bold 19px system-ui'; ctx.fillText(текст, 124, H - 18);
+  ctx.fillStyle = '#ff4d4d'; ctx.font = 'bold 15px system-ui'; ctx.fillText('● ПРЯМОЙ ЭФИР', W - 150, 26); }
+function искры(ctx, x, y, k) {                         // ✨ искорки у прибора
+  for (let i = 0; i < 1 + k*5; i++) { if (Math.random() > 0.55) continue; const a = Math.random()*Math.PI*2, r = 6 + Math.random()*24*k;
+    ctx.strokeStyle = Math.random() < 0.5 ? '#fde047' : '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a)*r, y + Math.sin(a)*r); ctx.stroke(); } }
+function экранМагазин(ctx, W, H, t) {                  // 🏬 магазин: отдел пылесосов и тостеров — искрят
+  const ф = ctx.createLinearGradient(0, 0, 0, H); ф.addColorStop(0, '#e2e8f0'); ф.addColorStop(1, '#94a3b8'); ctx.fillStyle = ф; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#1e3a8a'; ctx.fillRect(0, 0, W, 44); ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui'; ctx.fillText('🏬 МАГАЗИН «ТЕХНОМИР»', 16, 30);
+  ctx.font = 'bold 15px system-ui'; ctx.fillStyle = '#334155'; ctx.fillText('ОТДЕЛ ПЫЛЕСОСОВ', 40, 76); ctx.fillText('ТОСТЕРЫ', 400, 76);
+  const k = Math.min(1, t/3);
+  for (const y of [170, 270]) { ctx.fillStyle = '#78716c'; ctx.fillRect(20, y, W - 40, 10); }       // полки
+  for (let i = 0; i < 4; i++) { const x = 60 + i*80, y = 165, дрож = (Math.random() - 0.5)*4*k;           // пылесосы
+    ctx.fillStyle = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7'][i]; ctx.beginPath(); ctx.ellipse(x + дрож, y - 22, 26, 22, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x + 18 + дрож, y - 34); ctx.quadraticCurveTo(x + 40, y - 80, x + 10, y - 86); ctx.stroke();
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x - 12 + дрож, y - 4, 6, 0, 7); ctx.arc(x + 12 + дрож, y - 4, 6, 0, 7); ctx.fill();
+    искры(ctx, x + дрож, y - 30, k); }
+  for (let i = 0; i < 3; i++) { const x = 400 + i*72, y = 165, дрож = (Math.random() - 0.5)*4*k;          // тостеры
+    ctx.fillStyle = '#cbd5e1'; ctx.fillRect(x - 26 + дрож, y - 40, 52, 40); ctx.fillStyle = '#111'; ctx.fillRect(x - 16 + дрож, y - 40, 10, 6); ctx.fillRect(x + 6 + дрож, y - 40, 10, 6);
+    if (Math.sin(t*5 + i) > 0.6) { ctx.fillStyle = '#d97706'; ctx.fillRect(x - 16 + дрож, y - 56 - Math.random()*6, 10, 18); }
+    искры(ctx, x + дрож, y - 44, k); }
+  for (let i = 0; i < 6; i++) { const x = 50 + i*95, y = 262; ctx.fillStyle = '#e5e7eb'; ctx.fillRect(x - 22, y - 46, 44, 46); ctx.fillStyle = '#0f172a'; ctx.fillRect(x - 17, y - 41, 34, 26); искры(ctx, x, y - 30, k*0.6); }   // чайники-микроволновки
+  экранПодпись(ctx, W, H, 'В МАГАЗИНАХ ИСКРИТ ТЕХНИКА');
+}
+function экранСветофоры(ctx, W, H, t) {               // 🚦 ночная улица: светофоры мигают и гаснут, фонари тухнут
+  ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#1f2937'; ctx.fillRect(0, H - 110, W, 110);
+  ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 4; ctx.setLineDash([24, 18]); ctx.beginPath(); ctx.moveTo(0, H - 60); ctx.lineTo(W, H - 60); ctx.stroke(); ctx.setLineDash([]);
+  const гас = t/4;
+  for (let i = 0; i < 3; i++) { const x = 110 + i*210, жив = гас < 0.4 + i*0.2;                   // светофоры
+    ctx.fillStyle = '#334155'; ctx.fillRect(x - 3, 120, 6, H - 230); ctx.fillStyle = '#111827'; ctx.fillRect(x - 22, 40, 44, 104);
+    ['#ef4444', '#facc15', '#22c55e'].forEach((c, j) => { const горит = жив && Math.random() < 0.55; ctx.fillStyle = горит ? c : '#1f2937'; ctx.beginPath(); ctx.arc(x, 58 + j*32, 12, 0, 7); ctx.fill();
+      if (горит) { ctx.fillStyle = c + '55'; ctx.beginPath(); ctx.arc(x, 58 + j*32, 22, 0, 7); ctx.fill(); } }); }
+  for (let i = 0; i < 4; i++) { const x = 40 + i*190, горит = гас < 0.2 + i*0.22 && Math.random() < 0.85;   // фонари
+    ctx.strokeStyle = '#475569'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x, H - 110); ctx.lineTo(x, 90); ctx.lineTo(x + 30, 90); ctx.stroke();
+    ctx.fillStyle = горит ? '#fde68a' : '#334155'; ctx.beginPath(); ctx.arc(x + 30, 96, 9, 0, 7); ctx.fill();
+    if (горит) { const л = ctx.createRadialGradient(x + 30, 100, 2, x + 30, 160, 90); л.addColorStop(0, 'rgba(253,230,138,.35)'); л.addColorStop(1, 'rgba(253,230,138,0)'); ctx.fillStyle = л; ctx.fillRect(x - 60, 96, 180, 160); } }
+  экранПодпись(ctx, W, H, 'СВЕТОФОРЫ И ФОНАРИ ГАСНУТ');
+}
+function киноЭкран(что, t) {
+  const n = newsTV; if (!n) return; const { ctx, cv } = n, W = cv.width, H = cv.height;
+  if (что === 'гонка') { n.экран.material.map = ГОН.цель ? ГОН.цель.texture : n.tex; n.свет.color.setHex(0xbfe6ff); n.свет.intensity = 6; return; }   // 3D-гонка рисуется в своей текстуре
+  n.экран.material.map = n.tex;
+  if (что === 'канал') экранКанал(ctx, W, H, t);
+  else if (что === 'срочно') экранСрочно(ctx, W, H, t);
+  else if (что === 'диктор') рисоватьВыпуск(ctx, cv, n.t, НОВОСТИ_МУЛЬТ, 'СРОЧНЫЕ НОВОСТИ', БЕГУЩАЯ, '#c0182a', 'СРОЧНО');
+  else if (что === 'магазин') { экранМагазин(ctx, W, H, t); дикторЧитает(НОВОСТИ_МУЛЬТ, n.t); }
+  else if (что === 'светофоры') { экранСветофоры(ctx, W, H, t); дикторЧитает(НОВОСТИ_МУЛЬТ, n.t); }
+  else if (что === 'помехи') рисоватьПомехи(t);
+  else рисоватьПришельца(t);
+  n.tex.needsUpdate = true;
+  n.свет.color.setHex({ гонка:0xfde68a, канал:0xbfe6ff, срочно:0xff4d4d, магазин:0xf1f5f9, светофоры:0xfde68a, помехи:0xd8d8d8, пришелец:0x5cff8f }[что] || 0x9fd0ff);
+  n.свет.intensity = что === 'помехи' ? 3 + Math.random()*9 : что === 'пришелец' ? 6 + Math.sin(t*3)*2.5 : 6;   // в темноте экран светит неярко
+}
+function киноТехноЗапустить(после) {
+  state = 'кино'; КИНО.t = 0; КИНО.кадр = -1; КИНО.после = после; КИНО.щёлк = 0;
+  ['hud', 'remote', 'hint', 'menu', 'levelScreen'].forEach(id => $(id).classList.add('hidden')); $('stick').style.display = 'none';
+  const { group } = makeFurniture('диван', () => 0.35); group.position.set(0, 0, roomBounds.maxZ - 4.4); roomGroup.add(group); КИНО.диван = group;
+  if (!КИНО.руки) КИНО.руки = киноРуки(); КИНО.руки.visible = true;
+  if (newsTV) Object.assign(newsTV, { t:0, фаза:'кино', сбой:false, перерис:0 }); выпускИдёт = null;   // диктор прочтёт выпуск заново
+  КИНО.env = scene.environment; scene.environment = null;          // подсветка окружения светила на потолок — выключаем
+  КИНО.свет0 = hemi.intensity; hemi.intensity = КИНО.свет0*0.15;                 // 🌑 темно — светит только телевизор
+  КИНО.лампы = []; scene.traverse(o => { if (o.isLight && o !== hemi && (!newsTV || o !== newsTV.свет)) { КИНО.лампы.push([o, o.intensity]); o.intensity *= 0.06; } });
+  if (!КИНО.плашка) { const п = document.createElement('div'); п.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:70;max-width:min(92vw,720px);' +
+      'background:rgba(5,8,14,.78);color:#fff;font:700 18px system-ui;padding:10px 18px;border-radius:14px;text-align:center;display:none';
+    document.body.appendChild(п); КИНО.плашка = п;
+    const к = document.createElement('button'); к.textContent = '⏭ Пропустить'; к.style.cssText = 'position:fixed;top:12px;right:12px;z-index:71;font:800 15px system-ui;padding:9px 16px;border:none;' +
+      'border-radius:12px;background:#e2e8f0;color:#0f172a;cursor:pointer;display:none'; к.onclick = () => киноТехноКонец(); document.body.appendChild(к); КИНО.кнопка = к; }
+  КИНО.кнопка.style.display = 'block';
+  for (const e of enemies) if (e.alive) e.cinema = { x:e.pos.x, z:e.pos.z };      // 👾 техника пока стоит у дальней стены
+  try { localStorage.setItem('техно-мульт', '1'); } catch (_) {}
+}
+function киноТехноКонец() {
+  if (state !== 'кино') return;
+  if (КИНО.диван) { roomGroup.remove(КИНО.диван); КИНО.диван = null; }
+  КИНО.руки.visible = false; КИНО.плашка.style.display = 'none'; КИНО.кнопка.style.display = 'none';
+  hemi.intensity = КИНО.свет0; КИНО.лампы.forEach(([o, i]) => o.intensity = i); КИНО.лампы = []; if (КИНО.env) scene.environment = КИНО.env;
+  if (newsTV) { newsTV.экран.material.map = newsTV.tex; }
+  if (newsTV) { newsTV.фаза = 'пришелец'; newsTV.перерис = 0; }                     // на экране остаётся тот, кто всё устроил
+  for (const e of enemies) if (e.cinema) { delete e.cinema; e.root.position.copy(e.pos); }
+  player.pos.set(0, 0, roomBounds.maxZ - 5.6); player.yaw = 0; player.pitch = 0;
+  state = 'play'; last = performance.now();
+  const ф = КИНО.после; КИНО.после = null; ф && ф();
+}
+function киноТехноТик(dt) {
+  const t = (КИНО.t += dt), n = newsTV, Z = roomBounds.maxZ;
+  const к = КИНО_КАДРЫ.findIndex(([до]) => t < до);
+  if (к < 0) { киноТехноКонец(); return; }
+  const [до, текст, голос, экран] = КИНО_КАДРЫ[к], от = к ? КИНО_КАДРЫ[к - 1][0] : 0;
+  if (к !== КИНО.кадр) { КИНО.кадр = к;
+    КИНО.плашка.textContent = текст; КИНО.плашка.style.display = текст ? 'block' : 'none';
+    if (текст && голос) try { window.МКГолос && МКГолос.сказать(текст.replace(/^(👽|🎙) /, ''), голос); } catch (_) {}
+    if (экран === 'срочно') { tone(880, 'square', 0.25, 0.08); setTimeout(() => tone(660, 'square', 0.3, 0.08), 280); if (n) n.t = 0; }
+    if (к === 9) { noiseBurst(0.9, 0.16, 2600); tone(70, 'sawtooth', 0.7, 0.1); }
+    if (к === 10) { tone(52, 'sawtooth', 1.6, 0.12); setTimeout(() => tone(39, 'sine', 2.2, 0.1), 300); noiseBurst(0.5, 0.12, 900); }
+    if (к === 11) { tone(55, 'sawtooth', 1.2, 0.12); noiseBurst(0.6, 0.1, 700); setTimeout(() => { if (state !== 'кино') return; hemi.intensity = КИНО.свет0; КИНО.лампы.forEach(([o, i]) => o.intensity = i); if (КИНО.env) scene.environment = КИНО.env; tone(1500, 'square', 0.03, 0.05); }, 1300); } }
+  if (экран === 'гонка') { гонкаКадр(t, dt); if (Math.random() < dt*3) noiseBurst(0.05, 0.025, 3200); }   // 📻 комментатор с шипением, как в старой трансляции
+  if (n) { n.t += dt; n.перерис -= dt; if (n.перерис <= 0 || экран === 'помехи' || экран === 'гонка') { n.перерис = 0.06; киноЭкран(экран, t - от); } }
+  if (экран === 'помехи') { КИНО.щёлк -= dt; if (КИНО.щёлк <= 0) { КИНО.щёлк = 0.5; tone(1300, 'square', 0.04, 0.05); } }
+  // 🎥 камера: лежишь на диване (низко, чуть набок) → тянешься к экрану → встаёшь и оборачиваешься
+  const тв = new THREE.Vector3(0, 1.95, Z - 0.26);
+  if (к <= 10) { const ближе = к >= 10 ? Math.min(1, (t - 39.1)/5)*0.6 : 0;
+    camera.position.set(0.35 + Math.sin(t*0.4)*0.02, 0.92 + ближе*0.2, Z - 4.5 + ближе); camera.lookAt(тв); camera.rotateZ(0.12*(1 - ближе));
+    if (к === 10) camera.position.x += (Math.random() - 0.5)*0.015;
+    КИНО.руки.visible = true; КИНО.руки.children[1].position.y = -0.25 + (экран === 'помехи' ? Math.sin(t*30)*0.004 : 0); }
+  else { КИНО.руки.visible = false; const k = Math.min(1, (t - 45.9)/2.2), e = k*k*(3 - 2*k), z0 = Z - 4.5 + 0.6, z1 = Z - 5.6;
+    camera.position.set(0.35*(1 - e), 1.04 + (1.62 - 1.04)*e, z0 + (z1 - z0)*e); camera.rotation.set(0, Math.PI*(1 - e), 0);
+    if (t > 47.4) for (const e2 of enemies) { if (!e2.alive || !e2.cinema) continue;                   // 👾 техника идёт на тебя
+      const dx = player.pos.x - e2.pos.x, dz = (Z - 5.6) - e2.pos.z, d = Math.hypot(dx, dz) || 1, ш = Math.min(d - 3, 1.6*dt);
+      if (ш > 0) { e2.pos.x += dx/d*ш; e2.pos.z += dz/d*ш; } e2.root.position.copy(e2.pos); e2.root.rotation.y = Math.atan2(dx, dz) + (e2.type.yawOffset || 0);
+      (e2.legs || []).forEach(l => { const s = Math.sin(t*6 + l.phase); l.hip.rotation.x = s*0.42; l.knee.rotation.x = Math.max(0, -s)*0.55; }); e2.root.rotation.z = Math.sin(t*3)*0.07; } }   // шагают, как в игре
+  camera.updateMatrixWorld(true);
 }
 
 function buildRoom(level) {
@@ -3046,6 +3309,7 @@ let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, (now - last)/1000); last = now;
+  if (state === 'кино') { киноТехноТик(dt); renderer.render(scene, camera); return; }   // 🎬 мультик-заставка
   if (state === 'menu' || state === 'paused') { renderer.render(scene, camera); return; }
   if (state === 'win') { updateFx(dt); renderer.render(scene, camera); return; }
 
@@ -3333,7 +3597,7 @@ $('ctrlHint').textContent = isTouch
   ? 'Телефон: левый джойстик — идти, палец по экрану — оглядеться, зажми кнопку на пульте и веди на прибор.'
   : 'ПК: WASD — идти, тащи мышкой по экрану — оглядеться, зажми кнопку на пульте и веди мышкой на прибор.';
 
-function enterGame(startAt) {
+function enterGame(startAt, мульт) {
   goFullscreen();
   $('menu').classList.add('hidden');
   $('levelScreen').classList.add('hidden');
@@ -3347,9 +3611,12 @@ function enterGame(startAt) {
   setTimeout(() => { $('hint').classList.add('hidden'); }, 9000);
   resetCharges();
   startLevel(startAt);
+  if (startAt === 1 && (мульт || киноТехноНужно()))                     // 🎬 первый раз (или из меню) — сначала мультик
+    киноТехноЗапустить(() => { $('hud').classList.remove('hidden'); $('remote').classList.remove('hidden'); if (isTouch) $('stick').style.display = 'block'; });
 }
 
 $('startBtn').addEventListener('click', () => enterGame(1));
+$('menuKinoBtn').addEventListener('click', () => enterGame(1, true));
 $('continueBtn').addEventListener('click', () => enterGame(progress.maxLevel));
 $('menuLevelsBtn').addEventListener('click', () => { state = 'menu'; openLevels(); });
 $('menuAchBtn').addEventListener('click', () => { state = 'menu'; openAchs(); });
@@ -3454,6 +3721,9 @@ window.__dbg = {
     player.pitch = 0.05; camera.rotation.set(player.pitch, player.yaw, 0); camera.updateMatrixWorld(true);
     return true; },
   newsGlitch(){ if (!newsTV) return null; newsTV.сбой = true; return newsTV.фаза; },
+  get кино(){ return state === 'кино' ? { t:+КИНО.t.toFixed(2), кадр:КИНО.кадр } : null; },
+  kino(){ enterGame(1, true); return state; },
+  get stateNow(){ return state; },
   topView(){ camera.position.set(0, 26, 14); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(true); return true; },
   get furniture(){ return colliders.length; },
   atStart(){ player.pos.set(0, 0, roomBounds.maxZ - (level === 1 ? 5.6 : 1.6)); player.yaw = 0; player.pitch = 0;
