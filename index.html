@@ -203,7 +203,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "35e4efa0e0";</script>
+  <script>window.__APP_VER = "ef916d8fb8";</script>
 </head>
 <body>
 
@@ -1543,9 +1543,9 @@ function buildWasher(color) {
   const tankDirty = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.6,18), glassM(0xbfc6cf));
   tankDirty.position.set(0,1.5,0.15); tankDirty.rotation.x = -0.4; body.add(tankDirty);
   const motor = new THREE.Mesh(new THREE.SphereGeometry(0.32,20,18), bodyM);
-  motor.position.set(0,2.12,-.19); body.add(motor);
+  motor.position.set(0,2.04,-.17); body.add(motor);
   const handle = new THREE.Mesh(new THREE.TorusGeometry(0.28,0.06,10,22), bodyM);
-  handle.position.set(0,2.52,.06); handle.rotation.y = Math.PI/2; body.add(handle);
+  handle.position.set(0,2.25,.25); handle.rotation.y = Math.PI/2; body.add(handle);
   [-0.4,0,0.4].forEach(x => {
     const dr = new THREE.Mesh(new THREE.SphereGeometry(0.08,8,8), glassM(0x66bfff));
     dr.position.set(x,0.1,-.57); body.add(dr);
