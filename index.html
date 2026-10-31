@@ -203,7 +203,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "87e3d8bcef";</script>
+  <script>window.__APP_VER = "0527821141";</script>
 </head>
 <body>
 
@@ -1535,7 +1535,7 @@ function buildWasher(color) {
   const bodyM = plastic(color);
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.3,0.9), plastic(0x2c2f38));
-  head.position.set(0,0.2,-0.02); body.add(head);
+  head.position.set(0,0.2,-0.55); body.add(head);
   const tubo = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,2.0,14), metalM(0xcfd4dd));
   tubo.position.set(0,1.1,0.2); tubo.rotation.x = -0.4; body.add(tubo);
   const tankClean = new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.7,18), glassM(0x4db5ff));
@@ -1543,22 +1543,21 @@ function buildWasher(color) {
   const tankDirty = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.6,18), glassM(0xbfc6cf));
   tankDirty.position.set(0,1.5,0.15); tankDirty.rotation.x = -0.4; body.add(tankDirty);
   const motor = new THREE.Mesh(new THREE.SphereGeometry(0.32,20,18), bodyM);
-  motor.position.set(0,2.04,-.17); body.add(motor);
+  motor.position.set(0,1.95,0.3); body.add(motor);
   const handle = new THREE.Mesh(new THREE.TorusGeometry(0.28,0.06,10,22), bodyM);
-  handle.position.set(0,2.34,.14); handle.rotation.y = Math.PI/2; body.add(handle);
+  handle.position.set(0,2.4,0.6); handle.rotation.y = Math.PI/2; body.add(handle);
   [-0.4,0,0.4].forEach(x => {
     const dr = new THREE.Mesh(new THREE.SphereGeometry(0.08,8,8), glassM(0x66bfff));
-    dr.position.set(x,0.1,-.57); body.add(dr);
+    dr.position.set(x,0.1,-1.1); body.add(dr);
   });
   const led = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.1,0.05), emissiveM(0xff3b3b,1.8));
-  led.position.set(0,.25,-.485); body.add(led);
+  led.position.set(0,0.55,-0.86); body.add(led);
   // вилка на проводе — визуально «я от розетки, пульт меня не берёт»
   const plug = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.22,0.1), plastic(0xf2f2f2));
   plug.position.set(0.35,1.2,0.75); body.add(plug);
 
   const legs = spiderLegs(6, 0.5, 0.75, 0x8d94a6);
   legs.position.y = 0.6; g.add(legs);
-
 
   g.userData.legsGroup = legs; g.userData.led = led;
   return g;
