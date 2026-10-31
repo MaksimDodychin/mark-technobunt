@@ -203,7 +203,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Технобунт">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script>window.__APP_VER = "463d075a2a";</script>
+  <script>window.__APP_VER = "35e4efa0e0";</script>
 </head>
 <body>
 
@@ -1528,13 +1528,6 @@ function vacuumFitTube(mesh,a,b){const A=new THREE.Vector3(...a),B=new THREE.Vec
 function vacuumJoint(g,a,b,r,material){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,1,14),material);vacuumFitTube(m,a,b);m.castShadow=true;g.add(m);return m;}
 
 
-function vacuumTopContainer(g,motor,bodyM,clearM){
-  motor.scale.setScalar(.48);
-  const drum=new THREE.Mesh(new THREE.CylinderGeometry(.29,.29,.43,24),clearM);
-  drum.name='Верхний контейнер моющего пылесоса';drum.position.set(0,2.0,.30);g.add(drum);
-  for(const y of [1.78,2.22]){const cap=new THREE.Mesh(new THREE.CylinderGeometry(.31,.31,.07,24),bodyM);cap.position.set(0,y,.30);g.add(cap);}
-  const filter=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,.38,16),bodyM);filter.position.copy(drum.position);g.add(filter);
-}
 
 function buildWasher(color) {
   const g = new THREE.Group();
@@ -1542,7 +1535,7 @@ function buildWasher(color) {
   const bodyM = plastic(color);
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.3,0.9), plastic(0x2c2f38));
-  head.position.set(0,0.2,-0.55); body.add(head);
+  head.position.set(0,0.2,-0.02); body.add(head);
   const tubo = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,2.0,14), metalM(0xcfd4dd));
   tubo.position.set(0,1.1,0.2); tubo.rotation.x = -0.4; body.add(tubo);
   const tankClean = new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.7,18), glassM(0x4db5ff));
@@ -1550,15 +1543,15 @@ function buildWasher(color) {
   const tankDirty = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.6,18), glassM(0xbfc6cf));
   tankDirty.position.set(0,1.5,0.15); tankDirty.rotation.x = -0.4; body.add(tankDirty);
   const motor = new THREE.Mesh(new THREE.SphereGeometry(0.32,20,18), bodyM);
-  motor.position.set(0,1.95,0.3); body.add(motor);
+  motor.position.set(0,2.12,-.19); body.add(motor);
   const handle = new THREE.Mesh(new THREE.TorusGeometry(0.28,0.06,10,22), bodyM);
-  handle.position.set(0,2.4,0.6); handle.rotation.y = Math.PI/2; body.add(handle);
+  handle.position.set(0,2.52,.06); handle.rotation.y = Math.PI/2; body.add(handle);
   [-0.4,0,0.4].forEach(x => {
     const dr = new THREE.Mesh(new THREE.SphereGeometry(0.08,8,8), glassM(0x66bfff));
-    dr.position.set(x,0.1,-1.1); body.add(dr);
+    dr.position.set(x,0.1,-.57); body.add(dr);
   });
   const led = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.1,0.05), emissiveM(0xff3b3b,1.8));
-  led.position.set(0,.25,-1.015); body.add(led);
+  led.position.set(0,.25,-.485); body.add(led);
   // вилка на проводе — визуально «я от розетки, пульт меня не берёт»
   const plug = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.22,0.1), plastic(0xf2f2f2));
   plug.position.set(0.35,1.2,0.75); body.add(plug);
@@ -1566,7 +1559,7 @@ function buildWasher(color) {
   const legs = spiderLegs(6, 0.5, 0.75, 0x8d94a6);
   legs.position.y = 0.6; g.add(legs);
 
-  vacuumFitTube(tubo,[0,.24,-.55],[0,2.05,.30]);tankClean.rotation.x=tankDirty.rotation.x=.44;tankClean.position.z=-.217;tankDirty.position.z=.042;vacuumTopContainer(body,motor,bodyM,glassM(0x68caff));
+
   g.userData.legsGroup = legs; g.userData.led = led;
   return g;
 }
